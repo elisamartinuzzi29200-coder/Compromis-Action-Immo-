@@ -1,9 +1,48 @@
 const sections=["Parties","Situation et désignation","Déclarations du vendeur","Copropriété","Diagnostics","Prix et jouissance","Conditions particulières","Financement","Conditions suspensives","Réalisation / notaires","Négociation / séquestre","Récapitulatif"];
-let step=0,templateBytes=null;
+let step=0,templateBytes=null,viewMode="dashboard",currentId=null;
 const blankPerson=()=>({nom:"",prenoms:"",naissance:"",lieuNaissance:"",profession:"",situation:"Célibataire",unionDate:"",unionLieu:"",adresse:"",primo:false});
 const initial=()=>({vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:""});
 let data=initial();
-try{const s=localStorage.getItem("ai-compromis-exact");if(s)data={...initial(),...JSON.parse(s)}}catch{}
+function loadDossiers(){try{return JSON.parse(localStorage.getItem("ai-compromis-dossiers")||"[]")}catch{return []}}
+function storeDossiers(list){localStorage.setItem("ai-compromis-dossiers",JSON.stringify(list))}
+function dossierTitle(d){
+  const v=(d.vendeurs||[]).map(x=>(x.nom+" "+x.prenoms).trim()).filter(Boolean).join(" / ");
+  const a=(d.acquereurs||[]).map(x=>(x.nom+" "+x.prenoms).trim()).filter(Boolean).join(" / ");
+  return [v&&"Vendeur : "+v,a&&"Acquéreur : "+a,d.adresseBien].filter(Boolean).join(" — ")||"Dossier sans nom";
+}
+function newDossier(){
+  currentId="d_"+Date.now()+"_"+Math.random().toString(36).slice(2,8);
+  data=initial();step=0;viewMode="editor";render();
+}
+function saveDossier(){
+  if(!currentId)currentId="d_"+Date.now()+"_"+Math.random().toString(36).slice(2,8);
+  const list=loadDossiers(),idx=list.findIndex(x=>x.id===currentId);
+  const item={id:currentId,title:dossierTitle(data),updatedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))};
+  if(idx>=0)list[idx]=item;else list.unshift(item);
+  storeDossiers(list);
+  $("status").textContent="Dossier sauvegardé";
+}
+function openDossier(id){
+  const item=loadDossiers().find(x=>x.id===id);if(!item)return;
+  currentId=id;data={...initial(),...item.data};step=0;viewMode="editor";render();
+}
+function duplicateDossier(id){
+  const item=loadDossiers().find(x=>x.id===id);if(!item)return;
+  currentId="d_"+Date.now()+"_"+Math.random().toString(36).slice(2,8);
+  data={...initial(),...JSON.parse(JSON.stringify(item.data))};step=0;viewMode="editor";saveDossier();render();
+}
+function deleteDossier(id){
+  if(!confirm("Supprimer définitivement ce dossier de ce navigateur ?"))return;
+  storeDossiers(loadDossiers().filter(x=>x.id!==id));renderDashboard();
+}
+try{
+  const legacy=localStorage.getItem("ai-compromis-exact");
+  if(legacy&&loadDossiers().length===0){
+    const old={...initial(),...JSON.parse(legacy)},id="d_migration_"+Date.now();
+    storeDossiers([{id,title:dossierTitle(old),updatedAt:new Date().toISOString(),data:old}]);
+    localStorage.removeItem("ai-compromis-exact");
+  }
+}catch{}
 const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 const F=(l,k,t="text",full=false)=>`<div class="field ${full?"full":""}"><label>${l}</label><input type="${t}" data-key="${k}" value="${esc(data[k])}"></div>`;
 const T=(l,k)=>`<div class="field full"><label>${l}</label><textarea data-key="${k}">${esc(data[k])}</textarea></div>`;
@@ -17,7 +56,18 @@ ${["Marié(e)","Pacsé(e)"].includes(p.situation)?`<div class="field"><label>Dat
 function parseMoney(v){return Number(String(v||"").replace(/\\s/g,"").replace(/€/g,"").replace(",",".").replace(/[^0-9.-]/g,""))||0}
 function numberToFrench(n){n=Math.round(n);if(n===0)return "zéro";const units=["","un","deux","trois","quatre","cinq","six","sept","huit","neuf","dix","onze","douze","treize","quatorze","quinze","seize"];const under100=x=>{if(x<17)return units[x];if(x<20)return "dix-"+units[x-10];const tens=Math.floor(x/10),u=x%10;if(tens===7)return "soixante-"+under100(10+u);if(tens===9)return "quatre-vingt-"+under100(10+u);const names={2:"vingt",3:"trente",4:"quarante",5:"cinquante",6:"soixante",8:"quatre-vingt"};let s=names[tens]||"";if(u===1&&tens!==8)s+=" et un";else if(u)s+="-"+units[u];if(tens===8&&u===0)s+="s";return s};const under1000=x=>{if(x<100)return under100(x);const h=Math.floor(x/100),r=x%100;let s=(h===1?"cent":units[h]+" cent");if(r===0&&h>1)s+="s";return r?s+" "+under100(r):s};const parts=[];let billions=Math.floor(n/1e9);n%=1e9;let millions=Math.floor(n/1e6);n%=1e6;let thousands=Math.floor(n/1000);n%=1000;if(billions)parts.push((billions===1?"un":under1000(billions))+" milliard"+(billions>1?"s":""));if(millions)parts.push((millions===1?"un":under1000(millions))+" million"+(millions>1?"s":""));if(thousands)parts.push((thousands===1?"":under1000(thousands)+" ")+"mille");if(n)parts.push(under1000(n));return parts.join(" ")}
 function penaltyText(){const p=parseMoney(data.prixBien)*0.10;data.clausePenale=p?Math.round(p).toLocaleString("fr-FR")+" € ("+numberToFrench(p)+" euros)":"";return data.clausePenale}
-function render(){$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
+function renderDashboard(){
+  viewMode="dashboard";currentId=null;$("nav").innerHTML="";
+  const list=loadDossiers().sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  $("content").innerHTML=`<div class="dashboardHead"><div><h2>MES DOSSIERS</h2><p class="hint">Les dossiers sont enregistrés uniquement dans ce navigateur.</p></div><button class="primary" id="dashNew">+ Nouveau dossier</button></div>
+  ${list.length?`<div class="dossierList">${list.map(x=>`<article class="dossierCard"><div><strong>${esc(x.title)}</strong><small>Dernière modification : ${new Date(x.updatedAt).toLocaleString("fr-FR")}</small></div><div class="dossierActions"><button data-open="${x.id}">Ouvrir</button><button data-duplicate="${x.id}">Dupliquer</button><button class="dangerBtn" data-delete="${x.id}">Supprimer</button></div></article>`).join("")}</div>`:`<div class="emptyState"><strong>Aucun dossier enregistré</strong><p>Crée ton premier compromis. Tu pourras ensuite revenir ici pour le rouvrir, le dupliquer ou le supprimer.</p></div>`}`;
+  $("prev").style.display="none";$("next").style.display="none";
+  $("dashNew").onclick=newDossier;
+  document.querySelectorAll("[data-open]").forEach(x=>x.onclick=()=>openDossier(x.dataset.open));
+  document.querySelectorAll("[data-duplicate]").forEach(x=>x.onclick=()=>duplicateDossier(x.dataset.duplicate));
+  document.querySelectorAll("[data-delete]").forEach(x=>x.onclick=()=>deleteDossier(x.dataset.delete));
+}
+function render(){if(viewMode==="dashboard"){renderDashboard();return}$("prev").style.display="";$("next").style.display="";$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
 if(step===0)h+=`<div class="section">VENDEUR(S)</div>${personHtml("vendeurs")}<div class="section">ACQUÉREUR(S)</div>${personHtml("acquereurs")}`;
 if(step===1)h+=`<div class="grid">${F("Adresse du bien","adresseBien")}${T("Désignation complète du bien","designation")}${F("Le vendeur a acquis l’immeuble de","origineVendeur")}${F("Acte, Date, Notaire","origineActe")}</div>`;
 if(step===2)h+=`<div class="box"><strong>État d’occupation</strong><label class="check"><input type="radio" name="occupation" value="libre" ${data.occupation==="libre"?"checked":""}>Libre de toute location, occupation, réquisition ou encombrement</label><label class="check"><input type="radio" name="occupation" value="loue" ${data.occupation==="loue"?"checked":""}>Loué selon l’état locatif annexé</label></div>`;
@@ -37,9 +87,9 @@ async function saveTemplate(bytes,name){const db=await dbOpen();return new Promi
 async function loadTemplate(){try{const db=await dbOpen();return await new Promise((res,rej)=>{const tx=db.transaction("files","readonly"),q=tx.objectStore("files").get("template");q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error)})}catch{return null}}
 $("templateInput").onchange=async()=>{const f=$("templateInput").files[0];if(!f)return;templateBytes=new Uint8Array(await f.arrayBuffer());await saveTemplate(templateBytes,f.name);$("status").textContent="Modèle chargé : "+f.name};
 $("templateBtn").onclick=()=>$("templateInput").click();
-$("saveBtn").onclick=()=>{localStorage.setItem("ai-compromis-exact",JSON.stringify(data));$("status").textContent="Dossier sauvegardé"};
-$("resetBtn").onclick=()=>{if(confirm("Effacer le dossier en cours ?")){data=initial();localStorage.removeItem("ai-compromis-exact");step=0;render()}};
-$("generateBtn").onclick=async()=>{try{if(!templateBytes){alert("Charge d’abord le fichier COMPROMIS DE VENTE(2).docx. Il sera mémorisé dans ce navigateur ensuite.");return}penaltyText();const blob=await buildCompromis(templateBytes,data),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="COMPROMIS_DE_VENTE_REMPLI.docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert("Impossible de générer le document : "+e.message)}};
+$("saveBtn").onclick=()=>{if(viewMode==="dashboard")return;saveDossier()};
+$("dashboardBtn").onclick=()=>{viewMode="dashboard";renderDashboard()};$("newBtn").onclick=newDossier;
+$("generateBtn").onclick=async()=>{try{if(viewMode==="dashboard"){alert("Ouvre d’abord un dossier.");return}if(!templateBytes){alert("Charge d’abord le fichier COMPROMIS DE VENTE(2).docx. Il sera mémorisé dans ce navigateur ensuite.");return}penaltyText();const blob=await buildCompromis(templateBytes,data),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="COMPROMIS_DE_VENTE_REMPLI.docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert("Impossible de générer le document : "+e.message)}};
 $("prev").onclick=()=>{if(step>0){step--;render()}};
 $("next").onclick=()=>{if(step<sections.length-1){step++;render()}};
-(async()=>{const t=await loadTemplate();if(t){templateBytes=t.bytes instanceof Uint8Array?t.bytes:new Uint8Array(t.bytes);$("status").textContent="Modèle Word mémorisé : "+t.name}else $("status").textContent="Charge le modèle Word une seule fois";render()})();
+(async()=>{const t=await loadTemplate();if(t){templateBytes=t.bytes instanceof Uint8Array?t.bytes:new Uint8Array(t.bytes);$("status").textContent="Modèle Word mémorisé : "+t.name}else $("status").textContent="Charge le modèle Word une seule fois";renderDashboard()})();
