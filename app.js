@@ -83,14 +83,52 @@ function extractSiret(s){
 }
 function extractPersonFromId(text){
   const t=cleanDocText(text);
-  let nom=lineValue(t,/^(?:NOM|Nom)\b\s*:?\s*/i);
-  let prenoms=lineValue(t,/^(?:PR[ÉE]NOMS?|Pr[ée]nom(?:s)?)\b\s*:?\s*/i);
-  let naissance=lineValue(t,/(?:N[ÉE]\(E\)? LE|DATE DE NAISSANCE|Date de naissance)\s*:?\s*/i);
-  let lieu=lineValue(t,/(?:LIEU DE NAISSANCE|Lieu de naissance)\s*:?\s*/i);
-  if(!naissance){const d=t.match(/\b(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})\b/);if(d)naissance=d[1]}
-  nom=nom.replace(/[<>]/g," ").replace(/\s{2,}.*/,"").trim();
-  prenoms=prenoms.replace(/[<>]/g," ").replace(/\s{2,}.*/,"").trim();
-  lieu=lieu.replace(/\s{2,}.*/,"").trim();
+  const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  const after=(re)=>{
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(re);if(!m)continue;
+      const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-]+/,"").trim();
+      if(same)return same;
+      if(lines[i+1])return lines[i+1].trim();
+    }
+    return "";
+  };
+  let nom=after(/^(?:NOM|SURNAME)\b\s*:?\s*/i);
+  let prenoms=after(/^(?:PR[ÉE]NOMS?|GIVEN NAMES?)\b\s*:?\s*/i);
+  let naissance=after(/(?:DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)\s*:?\s*/i);
+  let lieu=after(/(?:LIEU DE NAISSANCE|PLACE OF BIRTH|N[ÉE]\(E\)? [ÀA])\s*:?\s*/i);
+
+  const compact=t.replace(/\s+/g,"");
+  const mrzLines=lines.filter(x=>/^[A-Z0-9<]{20,}$/.test(x.replace(/\s/g,"")));
+  const mrz=mrzLines.map(x=>x.replace(/\s/g,"")).join("\n");
+  const nameMrz=(mrz.match(/(?:IDFRA|P<FRA)[A-Z0-9<]*?([A-Z<]{2,})<<([A-Z<]+)/i)||[]);
+  if(!nom&&nameMrz[1])nom=nameMrz[1].replace(/</g," ").trim();
+  if(!prenoms&&nameMrz[2])prenoms=nameMrz[2].replace(/</g," ").trim();
+
+  if(!naissance){
+    const labeled=t.match(/(?:DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)[^0-9]{0,20}(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i);
+    if(labeled)naissance=labeled[1];
+  }
+  if(!naissance){
+    const dates=[...t.matchAll(/\b(\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)?\d{2})\b/g)].map(m=>m[1]);
+    if(dates.length)naissance=dates[0];
+  }
+
+  // Modern French CNI often prints NOM then PRENOMS on separate lines.
+  if(!nom){
+    const idx=lines.findIndex(x=>/\bNOM\b/i.test(x));
+    if(idx>=0&&lines[idx+1])nom=lines[idx+1];
+  }
+  if(!prenoms){
+    const idx=lines.findIndex(x=>/PR[ÉE]NOMS?/i.test(x));
+    if(idx>=0&&lines[idx+1])prenoms=lines[idx+1];
+  }
+
+  const cleanName=v=>String(v||"").replace(/\b(?:NOM|SURNAME|PR[ÉE]NOMS?|GIVEN NAMES?)\b\s*:?/gi,"").replace(/[<>]/g," ").replace(/\s{2,}/g," ").trim();
+  nom=cleanName(nom);
+  prenoms=cleanName(prenoms);
+  lieu=String(lieu||"").replace(/\b(?:LIEU DE NAISSANCE|PLACE OF BIRTH)\b\s*:?/gi,"").replace(/\s{2,}/g," ").trim();
+
   return {nom,prenoms,naissance:normalizeDateFr(naissance),lieuNaissance:lieu};
 }
 function extractCompanyFromKbis(text){
@@ -103,12 +141,61 @@ function extractCompanyFromKbis(text){
 }
 function extractTitleProperty(text){
   const t=cleanDocText(text);
-  let designation=sectionValue(t,/(?:D[ÉE]SIGNATION|DESIGNATION)\b\s*:?\s*/i,/(?:ORIGINE DE PROPRI[ÉE]T[ÉE]|EFFET RELATIF|PROPRI[ÉE]T[ÉE][ -]JOUISSANCE|CHARGES ET CONDITIONS|SERVITUDES|URBANISME)\b/i,12000);
+  const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+
+  let designation=sectionValue(
+    t,
+    /(?:^|\n)\s*(?:D[ÉE]SIGNATION(?: DU BIEN)?|DESIGNATION(?: DU BIEN)?|DESCRIPTION DU BIEN)\s*:?\s*/im,
+    /(?:^|\n)\s*(?:ORIGINE DE PROPRI[ÉE]T[ÉE]|EFFET RELATIF|PROPRI[ÉE]T[ÉE][ -]JOUISSANCE|SERVITUDES|URBANISME|CHARGES ET CONDITIONS|SITUATION HYPOTH[ÉE]CAIRE)\b/im,
+    18000
+  );
   designation=designation.replace(/^\s*[:.\-]+/,"").trim();
-  let date="";const dm=t.match(/(?:en date du|reçu le|acte[^\n]{0,80}?du)\s*(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})/i);if(dm)date=dm[1];
-  let notaire="";const nm=t.match(/(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ' \-]{2,})(?:,|\n|\s+notaire)/);if(nm)notaire=("Maître "+nm[1]).replace(/\s+/g," ").trim();
-  const origine=[date&&("Acte du "+date),notaire].filter(Boolean).join(" — ");
-  return {designation,origineActe:origine};
+
+  let adresseBien="";
+  const addressPatterns=[
+    /(?:sis(?:e)?|situ[ée](?:e)?|adresse(?: du bien)?|immeuble sis)\s+(?:à|au|aux)?\s*([^\n]{5,220}?\b\d{5}\b[^\n]{0,80})/i,
+    /\b\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n,;]{2,100}[, ]+\d{5}\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,80}/i
+  ];
+  for(const re of addressPatterns){const m=t.match(re);if(m){adresseBien=(m[1]||m[0]).replace(/\s+/g," ").trim();break}}
+  if(!adresseBien&&designation){
+    const m=designation.match(/\b\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n,;]{2,100}[, ]+\d{5}\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,80}/i);
+    if(m)adresseBien=m[0].replace(/\s+/g," ").trim();
+  }
+
+  let origineVendeur="";
+  const vendorStarts=[
+    /(?:VENDEUR(?:S)?|LE VENDEUR|DE LA PART DE|COMPARANT(?:S)?|PROPRI[ÉE]TAIRE(?:S)?)\s*:?\s*/i,
+    /(?:M\.|Mme|Monsieur|Madame)\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,}/
+  ];
+  for(let i=0;i<lines.length&&!origineVendeur;i++){
+    if(vendorStarts[0].test(lines[i])){
+      let v=lines[i].replace(vendorStarts[0],"").trim();
+      if(!v&&lines[i+1])v=lines[i+1];
+      v=v.replace(/^(M\.|Mme|Monsieur|Madame)\s+/i,"").replace(/,?\s+(?:n[ée]e?|demeurant|[ée]poux|[ée]pouse|c[ée]libataire|mari[ée]e?).*$/i,"").trim();
+      if(v.length>=2)origineVendeur=v;
+    }
+  }
+  if(!origineVendeur){
+    const m=t.match(/(?:appartient|appartenant|propri[ée]taire)[^\n]{0,120}?(?:M\.|Mme|Monsieur|Madame)?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' -]{2,}(?:\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{1,})?)/i);
+    if(m)origineVendeur=m[1].replace(/\s+/g," ").trim();
+  }
+
+  let date="";
+  const datePatterns=[
+    /(?:acte (?:authentique |de vente )?(?:reçu|dressé|établi)?\s*(?:par)?[^\n]{0,120}?)(?:en date du|le)\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i,
+    /(?:en date du|reçu le|sign[ée] le)\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i
+  ];
+  for(const re of datePatterns){const m=t.match(re);if(m){date=m[1];break}}
+
+  let notaire="";
+  const notaryPatterns=[
+    /(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80}?)(?:,|\n|\s+notaire\b)/i,
+    /notaire\s+(?:à|au|de)?\s*[^\n]{0,80}?(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80})/i
+  ];
+  for(const re of notaryPatterns){const m=t.match(re);if(m){notaire=("Maître "+m[1]).replace(/\s+/g," ").trim();break}}
+  const origineActe=[date&&("Acte du "+date),notaire].filter(Boolean).join(" — ");
+
+  return {adresseBien,designation,origineVendeur,origineActe};
 }
 function extractCarrez(text){
   const t=cleanDocText(text);
@@ -146,16 +233,57 @@ async function extractPdfText(bytes){
   }
   return parts.join("\n");
 }
-async function readImportedDocument(file){
-  if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
-    const bytes=new Uint8Array(await file.arrayBuffer()),text=await extractPdfText(bytes);
-    if(text.replace(/\s/g,"").length>=100)return text;
-    throw Error("Ce PDF semble scanné. Envoie plutôt une image JPG/PNG du document pour la reconnaissance.");
-  }
+async function createProcessedCanvasFromImage(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url});
+    const scale=Math.max(1.6,Math.min(3,2200/Math.max(img.width,img.height)));
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const im=ctx.getImageData(0,0,canvas.width,canvas.height),d=im.data;
+    for(let i=0;i<d.length;i+=4){
+      const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+      const v=g<145?0:g>225?255:Math.max(0,Math.min(255,(g-128)*1.7+128));
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+    ctx.putImageData(im,0,0);return canvas;
+  }finally{URL.revokeObjectURL(url)}
+}
+async function ocrCanvas(canvas,label){
   if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
-  $("status").textContent="Lecture du document…";
-  const res=await Tesseract.recognize(file,"fra",{logger:m=>{if(m.status==="recognizing text")$("status").textContent="Lecture du document… "+Math.round((m.progress||0)*100)+"%"}});
+  const res=await Tesseract.recognize(canvas,"fra",{
+    logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"},
+    tessedit_pageseg_mode:"6"
+  });
   return res.data.text||"";
+}
+async function readImportedDocument(files){
+  const list=Array.from(files||[]);
+  const parts=[];
+  for(let fi=0;fi<list.length;fi++){
+    const file=list[fi];
+    $("status").textContent="Lecture "+(fi+1)+"/"+list.length+"…";
+    if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      let text=await extractPdfText(bytes);
+      if(text.replace(/\s/g,"").length<100){
+        if(!window.pdfjsLib||!window.Tesseract)throw Error("Impossible de lire ce PDF scanné.");
+        const pdf=await pdfjsLib.getDocument({data:bytes}).promise,ocr=[];
+        for(let n=1;n<=Math.min(pdf.numPages,6);n++){
+          const page=await pdf.getPage(n),viewport=page.getViewport({scale:2.1}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+          canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);await page.render({canvasContext:ctx,viewport}).promise;
+          ocr.push(await ocrCanvas(canvas,"Lecture PDF page "+n));
+        }
+        text=ocr.join("\n");
+      }
+      parts.push(text);
+    }else{
+      const canvas=await createProcessedCanvasFromImage(file);
+      parts.push(await ocrCanvas(canvas,"Lecture CNI / document"));
+    }
+  }
+  return parts.join("\n");
 }
 function applyImportResult(meta,result){
   const parts=meta.split(":"),type=parts[0],kind=parts[1],index=parts[2];
@@ -165,11 +293,11 @@ function applyImportResult(meta,result){
   }else Object.assign(data,result);
   saveDossier();render();
 }
-async function handleDocumentImport(file,meta){
-  if(!file)return;
+async function handleDocumentImport(files,meta){
+  const list=Array.from(files||[]);if(!list.length)return;
   try{
-    $("status").textContent="Analyse de "+file.name+"…";
-    const text=await readImportedDocument(file),parts=meta.split(":"),type=parts[0],kind=parts[1];
+    $("status").textContent="Analyse de "+list.map(x=>x.name).join(", ")+"…";
+    const text=await readImportedDocument(list),parts=meta.split(":"),type=parts[0],kind=parts[1];
     let result;
     if(type==="vendeur"||type==="acquereur")result=kind==="kbis"?extractCompanyFromKbis(text):extractPersonFromId(text);
     else if(type==="titre")result=extractTitleProperty(text);
@@ -262,8 +390,8 @@ const bordereauDocs=[
 ];
 function bordereauHtml(){return bordereauDocs.map(([cat,docs])=>`<div class="section">${cat}</div><div class="grid">${docs.map(d=>`<label class="check"><input type="checkbox" data-doc="${esc(d)}" ${data.bordereau&&data.bordereau[d]?"checked":""}>${d}</label>`).join("")}</div>`).join("")}
 function render(){if(viewMode==="dashboard"){renderDashboard();return}$("prev").style.display="";$("next").style.display="";$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
-if(step===0)h+=`<div class="notice">Tu peux préremplir chaque partie depuis une CNI / un passeport ou un KBIS. Le document est lu localement dans ce navigateur.</div><div class="section">VENDEUR(S)</div>${personHtml("vendeurs")}<div class="section">ACQUÉREUR(S)</div>${personHtml("acquereurs")}`;
-if(step===1)h+=`<div class="box"><strong>Import du titre de propriété</strong><p class="hint">L’application cherche la rubrique « Désignation » et la reprend telle qu’elle apparaît dans le titre, avec la date de l’acte et le notaire.</p>${importButton("titre","le titre de propriété")}</div><div class="box"><strong>Type de bien</strong><label class="check"><input type="radio" name="typeBien" value="ancien" ${data.typeBien==="ancien"?"checked":""}>Ancien</label><label class="check"><input type="radio" name="typeBien" value="neuf" ${data.typeBien==="neuf"?"checked":""}>Neuf</label></div><div class="grid">${F("Adresse du bien","adresseBien")}${T("Désignation complète du bien","designation")}${F("Le vendeur a acquis l’immeuble de","origineVendeur")}${F("Acte, Date, Notaire","origineActe")}</div>`;
+if(step===0)h+=`<div class="notice">Tu peux préremplir chaque partie depuis une CNI / un passeport ou un KBIS. Pour une CNI, tu peux sélectionner le recto et le verso en une seule fois.</div><div class="section">VENDEUR(S)</div>${personHtml("vendeurs")}<div class="section">ACQUÉREUR(S)</div>${personHtml("acquereurs")}`;
+if(step===1)h+=`<div class="box"><strong>Import du titre de propriété</strong><p class="hint">L’application cherche dans le titre : l’adresse du bien, la rubrique « Désignation » (reprise telle quelle), le nom du vendeur pour « Acquis de », puis la date de l’acte et le notaire.</p>${importButton("titre","le titre de propriété")}</div><div class="box"><strong>Type de bien</strong><label class="check"><input type="radio" name="typeBien" value="ancien" ${data.typeBien==="ancien"?"checked":""}>Ancien</label><label class="check"><input type="radio" name="typeBien" value="neuf" ${data.typeBien==="neuf"?"checked":""}>Neuf</label></div><div class="grid">${F("Adresse du bien","adresseBien")}${T("Désignation complète du bien","designation")}${F("Le vendeur a acquis l’immeuble de","origineVendeur")}${F("Acte, Date, Notaire","origineActe")}</div>`;
 if(step===2)h+=`<div class="box"><strong>État d’occupation</strong><label class="check"><input type="radio" name="occupation" value="libre" ${data.occupation==="libre"?"checked":""}>Libre de toute location, occupation, réquisition ou encombrement</label><label class="check"><input type="radio" name="occupation" value="loue" ${data.occupation==="loue"?"checked":""}>Loué selon l’état locatif annexé</label></div>`;
 if(step===3)h+=`<div class="box"><strong>Diagnostic loi Carrez</strong><p class="hint">Importe le rapport de mesurage pour préremplir superficie, date et diagnostiqueur.</p>${importButton("carrez","le diagnostic Carrez")}</div><div class="grid">${F("Superficie loi Carrez","carrez")}${F("Date du métrage","carrezDate","date")}${F("Métrage réalisé par","metreur")}${F("Syndic de copropriété","syndic")}</div>`;
 if(step===4)h+=`<div class="box"><strong>Importer les diagnostics</strong><p class="hint">Chaque rapport peut être importé séparément. Seules les informations détectées sont proposées avant remplissage.</p><div class="importGrid">${importButton("erp","ERP")}${importButton("parasitaire","termites / parasitaire")}${importButton("plomb","plomb")}${importButton("amiante","amiante")}${importButton("gaz","gaz")}${importButton("electricite","électricité")}${importButton("dpe","DPE")}${importButton("audit","audit énergétique")}</div></div><div class="grid">${F("Année de construction de l’immeuble","construction","number")}<div class="field"><label>Assainissement</label><select data-key="assainissement"><option value=""></option><option value="collectif_ok" ${data.assainissement==="collectif_ok"?"selected":""}>Collectif - raccordé</option><option value="collectif_ko" ${data.assainissement==="collectif_ko"?"selected":""}>Collectif - non/mal raccordé</option><option value="non_collectif" ${data.assainissement==="non_collectif"?"selected":""}>Non collectif</option></select></div>${F("Répartition du coût de raccordement","repartitionAssainissement")}${C("État des risques et pollution","erp")}${F("ERP établi le","erpDate","date")}${C("Risques technologiques","erpTech")}${C("Risques naturels","erpNat")}${C("Zone sismique","erpSismique")}${C("Risques miniers","erpMinier")}${C("Secteur d’information sur les sols","erpSis")}<div class="field"><label>Sinistre indemnisé</label><select data-key="sinistre"><option value=""></option><option value="non" ${data.sinistre==="non"?"selected":""}>Non</option><option value="oui" ${data.sinistre==="oui"?"selected":""}>Oui</option></select></div>${C("Diagnostic parasitaire / termites","parasitaire")}${F("Parasitaire établi le","parasitaireDate","date")}${C("Constat plomb","plomb")}${F("Plomb établi le","plombDate","date")}<div class="field"><label>Résultat plomb</label><select data-key="plombResultat"><option value=""></option><option value="absence" ${data.plombResultat==="absence"?"selected":""}>Absence</option><option value="sup" ${data.plombResultat==="sup"?"selected":""}>Présence supérieure aux seuils</option><option value="inf" ${data.plombResultat==="inf"?"selected":""}>Présence inférieure aux seuils</option></select></div>${C("Amiante","amiante")}${F("Amiante établi le","amianteDate","date")}${C("Amiante parties privatives","amiantePriv")}${C("Amiante parties communes","amianteComm")}${C("Gaz","gaz")}${F("Gaz établi le","gazDate","date")}${C("Électricité","electricite")}${F("Électricité établie le","electriciteDate","date")}${C("DPE","dpe")}${F("DPE établi le","dpeDate","date")}${C("Audit énergétique","audit")}${F("Audit établi le","auditDate","date")}</div>`;
@@ -281,7 +409,7 @@ function dbOpen(){return new Promise((res,rej)=>{const q=indexedDB.open("comprom
 async function saveTemplate(bytes,name){const db=await dbOpen();return new Promise((res,rej)=>{const tx=db.transaction("files","readwrite");tx.objectStore("files").put({bytes,name},"template");tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 async function loadTemplate(){try{const db=await dbOpen();return await new Promise((res,rej)=>{const tx=db.transaction("files","readonly"),q=tx.objectStore("files").get("template");q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error)})}catch{return null}}
 $("templateInput").onchange=async()=>{const f=$("templateInput").files[0];if(!f)return;templateBytes=new Uint8Array(await f.arrayBuffer());await saveTemplate(templateBytes,f.name);$("status").textContent="Modèle chargé : "+f.name};
-$("documentImportInput").onchange=async()=>{const f=$("documentImportInput").files[0];if(!f||!pendingImport)return;const meta=pendingImport;pendingImport=null;await handleDocumentImport(f,meta)};
+$("documentImportInput").onchange=async()=>{const files=$("documentImportInput").files;if(!files||!files.length||!pendingImport)return;const meta=pendingImport;pendingImport=null;await handleDocumentImport(files,meta)};
 $("templateBtn").onclick=()=>$("templateInput").click();
 $("saveBtn").onclick=()=>{if(viewMode==="dashboard")return;saveDossier()};
 $("dashboardBtn").onclick=()=>{viewMode="dashboard";renderDashboard()};$("newBtn").onclick=newDossier;
