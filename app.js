@@ -55,10 +55,19 @@ function importButton(type,label,kind,index){
   return '<button type="button" class="importBtn" data-import="'+esc(parts.join(":"))+'">Importer '+esc(label)+'</button>';
 }
 function normalizeDateFr(v){
-  const m=String(v||"").match(/\b(\d{1,2})[\\/.\-](\d{1,2})[\\/.\-](\d{2,4})\b/);
-  if(!m)return "";
-  let y=m[3];if(y.length===2)y=(Number(y)>40?"19":"20")+y;
-  return y.padStart(4,"0")+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  const s=String(v||"").trim();
+  let m=s.match(/\b(\d{1,2})[\\/.\-\s]+(\d{1,2})[\\/.\-\s]+(\d{2,4})\b/);
+  if(m){
+    let y=m[3];if(y.length===2)y=(Number(y)>40?"19":"20")+y;
+    return y.padStart(4,"0")+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  }
+  const months={janvier:1,"février":2,fevrier:2,mars:3,avril:4,mai:5,juin:6,juillet:7,"août":8,aout:8,septembre:9,octobre:10,novembre:11,"décembre":12,decembre:12};
+  m=s.toLowerCase().match(/\b(\d{1,2})\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\s+(\d{4})\b/i);
+  if(m){
+    const key=m[2].toLowerCase(),mo=months[key]||months[key.normalize("NFD").replace(/[\u0300-\u036f]/g,"")];
+    if(mo)return m[3]+"-"+String(mo).padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  }
+  return "";
 }
 function cleanDocText(s){return String(s||"").replace(/\u00ad/g,"").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim()}
 function lineValue(text,labelRe){
@@ -84,52 +93,57 @@ function extractSiret(s){
 function extractPersonFromId(text){
   const t=cleanDocText(text);
   const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
-  const after=(re)=>{
+  const after=(re,span=1)=>{
     for(let i=0;i<lines.length;i++){
       const m=lines[i].match(re);if(!m)continue;
-      const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-]+/,"").trim();
+      const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-()]+/,"").trim();
       if(same)return same;
-      if(lines[i+1])return lines[i+1].trim();
+      const vals=[];
+      for(let j=1;j<=span&&lines[i+j];j++){
+        if(/^(?:Nationalit|Sexe|Taille|Couleur|Date |Lieu |Autorit|Passeport|Domicile|Type\/|Code du pays)/i.test(lines[i+j]))break;
+        vals.push(lines[i+j]);
+      }
+      return vals.join(" ").trim();
     }
     return "";
   };
-  let nom=after(/^(?:NOM|SURNAME)\b\s*:?\s*/i);
-  let prenoms=after(/^(?:PR[ÉE]NOMS?|GIVEN NAMES?)\b\s*:?\s*/i);
-  let naissance=after(/(?:DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)\s*:?\s*/i);
-  let lieu=after(/(?:LIEU DE NAISSANCE|PLACE OF BIRTH|N[ÉE]\(E\)? [ÀA])\s*:?\s*/i);
 
-  const compact=t.replace(/\s+/g,"");
-  const mrzLines=lines.filter(x=>/^[A-Z0-9<]{20,}$/.test(x.replace(/\s/g,"")));
-  const mrz=mrzLines.map(x=>x.replace(/\s/g,"")).join("\n");
-  const nameMrz=(mrz.match(/(?:IDFRA|P<FRA)[A-Z0-9<]*?([A-Z<]{2,})<<([A-Z<]+)/i)||[]);
-  if(!nom&&nameMrz[1])nom=nameMrz[1].replace(/</g," ").trim();
-  if(!prenoms&&nameMrz[2])prenoms=nameMrz[2].replace(/</g," ").trim();
+  let nom=after(/^(?:Nom\s*\/\s*Surname(?:\s*\(\d+\))?|NOM|SURNAME)\s*:?\s*/i);
+  let prenoms=after(/^(?:Pr[ée]noms?\s*\/\s*Given names?(?:\s*\(\d+\))?|PR[ÉE]NOMS?|GIVEN NAMES?)\s*:?\s*/i);
+  let naissance=after(/^(?:Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?|DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)\s*:?\s*/i);
+  let lieu=after(/^(?:Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?|LIEU DE NAISSANCE|PLACE OF BIRTH)\s*:?\s*/i);
+  let adresse=after(/^(?:Domicile\s*\/\s*Residence(?:\s*\(\d+\))?|DOMICILE|ADRESSE)\s*:?\s*/i,3);
 
-  if(!naissance){
-    const labeled=t.match(/(?:DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)[^0-9]{0,20}(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i);
-    if(labeled)naissance=labeled[1];
+  // Labels may be OCR'd on the same line as their values.
+  if(!nom){const m=t.match(/Nom\s*\/\s*Surname(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' .\-]{1,60})/i);if(m)nom=m[1]}
+  if(!prenoms){const m=t.match(/Pr[ée]noms?\s*\/\s*Given names?(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ,' .\-]{1,80})/i);if(m)prenoms=m[1]}
+  if(!naissance){const m=t.match(/Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?[^0-9]{0,30}(\d{1,2}[\s\/\.\-]+\d{1,2}[\s\/\.\-]+\d{2,4})/i);if(m)naissance=m[1]}
+  if(!lieu){const m=t.match(/Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' .\-]{2,80})/i);if(m)lieu=m[1]}
+  if(!adresse){const m=t.match(/Domicile\s*\/\s*Residence(?:\s*\(\d+\))?\s*[:\-]?\s*([^\n]{5,120}(?:\n[^\n]{2,80})?)/i);if(m)adresse=m[1]}
+
+  // Passport MRZ: P<FRA[SURNAME]<<GIVEN<NAMES...
+  const mrzLines=lines.map(x=>x.replace(/\s/g,"")).filter(x=>/^[A-Z0-9<]{25,}$/.test(x));
+  const mrz1=mrzLines.find(x=>/^P</.test(x))||"";
+  const mrz2=mrzLines.find(x=>x!==mrz1&&/^[A-Z0-9<]{30,}$/.test(x))||"";
+  const nm=mrz1.match(/^P<[A-Z]{3}([A-Z<]+)<<([A-Z<]+)/);
+  if(!nom&&nm)nom=nm[1].replace(/</g," ").trim();
+  if(!prenoms&&nm)prenoms=nm[2].replace(/</g," ").trim();
+  if(!naissance&&mrz2){
+    const m=mrz2.match(/^[A-Z0-9<]{9}\d[A-Z]{3}(\d{6})\d/);
+    if(m){
+      const yy=Number(m[1].slice(0,2)),mm=m[1].slice(2,4),dd=m[1].slice(4,6);
+      const currentYY=new Date().getFullYear()%100,century=yy>currentYY?"19":"20";
+      naissance=dd+" "+mm+" "+century+String(yy).padStart(2,"0");
+    }
   }
-  if(!naissance){
-    const dates=[...t.matchAll(/\b(\d{1,2}[\/.-]\d{1,2}[\/.-](?:19|20)?\d{2})\b/g)].map(m=>m[1]);
-    if(dates.length)naissance=dates[0];
-  }
 
-  // Modern French CNI often prints NOM then PRENOMS on separate lines.
-  if(!nom){
-    const idx=lines.findIndex(x=>/\bNOM\b/i.test(x));
-    if(idx>=0&&lines[idx+1])nom=lines[idx+1];
-  }
-  if(!prenoms){
-    const idx=lines.findIndex(x=>/PR[ÉE]NOMS?/i.test(x));
-    if(idx>=0&&lines[idx+1])prenoms=lines[idx+1];
-  }
+  const cleanName=v=>String(v||"").replace(/\b(?:Nom|Surname|Pr[ée]noms?|Given names?)\b.*$/i,"").replace(/[<>]/g," ").replace(/\s{2,}/g," ").trim();
+  nom=cleanName(nom).replace(/\b(?:Nationalit|Française|Francaise).*$/i,"").trim();
+  prenoms=cleanName(prenoms).replace(/\b(?:Nationalit|Sexe|Taille).*$/i,"").trim();
+  lieu=String(lieu||"").replace(/\b(?:Date de d[ée]livrance|Domicile|Autorit[ée]).*$/i,"").replace(/\s{2,}/g," ").trim();
+  adresse=String(adresse||"").replace(/\b(?:FRANCE|FRA)\b.*$/i,"").replace(/\s{2,}/g," ").trim();
 
-  const cleanName=v=>String(v||"").replace(/\b(?:NOM|SURNAME|PR[ÉE]NOMS?|GIVEN NAMES?)\b\s*:?/gi,"").replace(/[<>]/g," ").replace(/\s{2,}/g," ").trim();
-  nom=cleanName(nom);
-  prenoms=cleanName(prenoms);
-  lieu=String(lieu||"").replace(/\b(?:LIEU DE NAISSANCE|PLACE OF BIRTH)\b\s*:?/gi,"").replace(/\s{2,}/g," ").trim();
-
-  return {nom,prenoms,naissance:normalizeDateFr(naissance),lieuNaissance:lieu};
+  return {nom,prenoms,naissance:normalizeDateFr(naissance),lieuNaissance:lieu,adresse};
 }
 function extractCompanyFromKbis(text){
   const t=cleanDocText(text);
@@ -143,58 +157,59 @@ function extractTitleProperty(text){
   const t=cleanDocText(text);
   const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
 
+  // Exact designation block: from DESIGNATION through the listed lots, stopping before buyer/price clauses.
   let designation=sectionValue(
     t,
-    /(?:^|\n)\s*(?:D[ÉE]SIGNATION(?: DU BIEN)?|DESIGNATION(?: DU BIEN)?|DESCRIPTION DU BIEN)\s*:?\s*/im,
-    /(?:^|\n)\s*(?:ORIGINE DE PROPRI[ÉE]T[ÉE]|EFFET RELATIF|PROPRI[ÉE]T[ÉE][ -]JOUISSANCE|SERVITUDES|URBANISME|CHARGES ET CONDITIONS|SITUATION HYPOTH[ÉE]CAIRE)\b/im,
-    18000
+    /(?:^|\n)\s*(?:D[ÉE]SIGNATION|DESIGNATION)\s*:?\s*/im,
+    /(?:^|\n)\s*(?:L['’]ACQU[ÉE]REUR|PRIX|PROPRI[ÉE]T[ÉE][ -]JOUISSANCE|ORIGINE DE PROPRI[ÉE]T[ÉE]|EFFET RELATIF)\b/im,
+    20000
   );
   designation=designation.replace(/^\s*[:.\-]+/,"").trim();
 
+  // Typical notarial wording: "situé à BREST (FINISTERE) 29200 28 rue du Professeur Langevin".
   let adresseBien="";
-  const addressPatterns=[
-    /(?:sis(?:e)?|situ[ée](?:e)?|adresse(?: du bien)?|immeuble sis)\s+(?:à|au|aux)?\s*([^\n]{5,220}?\b\d{5}\b[^\n]{0,80})/i,
-    /\b\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n,;]{2,100}[, ]+\d{5}\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,80}/i
-  ];
-  for(const re of addressPatterns){const m=t.match(re);if(m){adresseBien=(m[1]||m[0]).replace(/\s+/g," ").trim();break}}
-  if(!adresseBien&&designation){
-    const m=designation.match(/\b\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n,;]{2,100}[, ]+\d{5}\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,80}/i);
-    if(m)adresseBien=m[0].replace(/\s+/g," ").trim();
+  let m=t.match(/situ[ée](?:e)?\s+[àa]\s+([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]+)(?:\s*\([^)]*\))?\s+(\d{5})\s+(\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n.;]{2,120})/i);
+  if(m)adresseBien=(m[3]+" "+m[2]+" "+m[1]).replace(/\s+/g," ").trim();
+  if(!adresseBien){
+    m=t.match(/\b(\d{1,4}\s+(?:rue|avenue|boulevard|place|impasse|all[ée]e|route|chemin|quai|cours|square|lotissement)\s+[^\n,;]{2,100})[, ]+(\d{5})\s+([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,80})/i);
+    if(m)adresseBien=(m[1]+" "+m[2]+" "+m[3]).replace(/\s+/g," ").trim();
   }
 
+  // Sellers in attestations: text between "Par :" and "Au profit de :".
   let origineVendeur="";
-  const vendorStarts=[
-    /(?:VENDEUR(?:S)?|LE VENDEUR|DE LA PART DE|COMPARANT(?:S)?|PROPRI[ÉE]TAIRE(?:S)?)\s*:?\s*/i,
-    /(?:M\.|Mme|Monsieur|Madame)\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{2,}/
-  ];
-  for(let i=0;i<lines.length&&!origineVendeur;i++){
-    if(vendorStarts[0].test(lines[i])){
-      let v=lines[i].replace(vendorStarts[0],"").trim();
-      if(!v&&lines[i+1])v=lines[i+1];
-      v=v.replace(/^(M\.|Mme|Monsieur|Madame)\s+/i,"").replace(/,?\s+(?:n[ée]e?|demeurant|[ée]poux|[ée]pouse|c[ée]libataire|mari[ée]e?).*$/i,"").trim();
-      if(v.length>=2)origineVendeur=v;
+  const sellerBlock=sectionValue(t,/(?:^|\n)\s*Par\s*:\s*/im,/(?:^|\n)\s*Au profit de\s*:\s*/im,5000);
+  if(sellerBlock){
+    const names=[];
+    const re=/(?:Monsieur|Madame|Mademoiselle|M\.|Mme)\s+([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]*?[A-ZÀ-ÖØ-Ý]{2,})(?=,|\s+(?:électronicien|agent|demeurant|né|née|profession|sans profession)|\n|$)/g;
+    for(const nm of sellerBlock.matchAll(re)){
+      const v=nm[1].replace(/\s+/g," ").trim();
+      if(v&&!names.includes(v))names.push(v);
     }
+    origineVendeur=names.join(" / ");
   }
   if(!origineVendeur){
-    const m=t.match(/(?:appartient|appartenant|propri[ée]taire)[^\n]{0,120}?(?:M\.|Mme|Monsieur|Madame)?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' -]{2,}(?:\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]{1,})?)/i);
+    const m=t.match(/(?:VENDEUR(?:S)?|LE VENDEUR|DE LA PART DE)\s*:?\s*(?:Monsieur|Madame|Mademoiselle|M\.|Mme)?\s*([^\n,]{3,100})/i);
     if(m)origineVendeur=m[1].replace(/\s+/g," ").trim();
   }
 
+  // Date of the sale/act, including long French dates such as "4 octobre 2006".
   let date="";
   const datePatterns=[
-    /(?:acte (?:authentique |de vente )?(?:reçu|dressé|établi)?\s*(?:par)?[^\n]{0,120}?)(?:en date du|le)\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i,
-    /(?:en date du|reçu le|sign[ée] le)\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i
+    /(?:avoir re[çc]u|a re[çc]u|re[çc]u)\s+le\s+(\d{1,2}\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\s+\d{4})/i,
+    /(?:acte|vente)[^\n]{0,100}?(?:en date du|le)\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4})/i,
+    /(?:en date du|re[çc]u le|sign[ée] le)\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4})/i
   ];
-  for(const re of datePatterns){const m=t.match(re);if(m){date=m[1];break}}
+  for(const re of datePatterns){const dm=t.match(re);if(dm){date=dm[1];break}}
 
   let notaire="";
   const notaryPatterns=[
-    /(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80}?)(?:,|\n|\s+notaire\b)/i,
-    /notaire\s+(?:à|au|de)?\s*[^\n]{0,80}?(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80})/i
+    /JE SOUSSIGN[ÉE]?\s+(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80}?)\s+Notaire/i,
+    /(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' \-]{2,80}?)(?:,|\n|\s+notaire\b)/i
   ];
-  for(const re of notaryPatterns){const m=t.match(re);if(m){notaire=("Maître "+m[1]).replace(/\s+/g," ").trim();break}}
-  const origineActe=[date&&("Acte du "+date),notaire].filter(Boolean).join(" — ");
+  for(const re of notaryPatterns){const nm=t.match(re);if(nm){notaire=("Maître "+nm[1]).replace(/\s+/g," ").trim();break}}
 
+  const normalizedActDate=normalizeDateFr(date);
+  const origineActe=[normalizedActDate?("Acte du "+normalizedActDate):date?("Acte du "+date):"",notaire].filter(Boolean).join(" — ");
   return {adresseBien,designation,origineVendeur,origineActe};
 }
 function extractCarrez(text){
@@ -304,50 +319,64 @@ async function createProcessedCanvasFromImage(file){
   const url=URL.createObjectURL(file);
   try{
     const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url});
-    const scale=Math.max(1.6,Math.min(3,2200/Math.max(img.width,img.height)));
+    const scale=Math.max(1.8,Math.min(3.2,2600/Math.max(img.width,img.height)));
     const canvas=document.createElement("canvas");
     canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
     const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,canvas.width,canvas.height);
     const im=ctx.getImageData(0,0,canvas.width,canvas.height),d=im.data;
     for(let i=0;i<d.length;i+=4){
       const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-      const v=g<145?0:g>225?255:Math.max(0,Math.min(255,(g-128)*1.7+128));
+      const v=g<115?0:g>235?255:Math.max(0,Math.min(255,(g-120)*1.35+120));
       d[i]=d[i+1]=d[i+2]=v;
     }
     ctx.putImageData(im,0,0);return canvas;
   }finally{URL.revokeObjectURL(url)}
 }
-async function ocrCanvas(canvas,label){
+async function ocrCanvas(canvas,label,psm){
   if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
-  const res=await Tesseract.recognize(canvas,"fra",{
+  const res=await Tesseract.recognize(canvas,"fra+eng",{
     logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"},
-    tessedit_pageseg_mode:"6"
+    tessedit_pageseg_mode:String(psm||6)
   });
   return res.data.text||"";
 }
-async function readImportedDocument(files){
-  const list=Array.from(files||[]);
-  const parts=[];
+async function ocrOriginalFile(file,label,psm){
+  if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
+  const res=await Tesseract.recognize(file,"fra+eng",{
+    logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"},
+    tessedit_pageseg_mode:String(psm||11)
+  });
+  return res.data.text||"";
+}
+async function readImportedDocument(files,meta){
+  const list=Array.from(files||[]),parts=[],identity=/^(vendeur|acquereur):cni/.test(meta||"");
   for(let fi=0;fi<list.length;fi++){
-    const file=list[fi];
-    $("status").textContent="Lecture "+(fi+1)+"/"+list.length+"…";
+    const file=list[fi];$("status").textContent="Lecture "+(fi+1)+"/"+list.length+"…";
     if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
       const bytes=new Uint8Array(await file.arrayBuffer());
       let text=await extractPdfText(bytes);
       if(text.replace(/\s/g,"").length<100){
         if(!window.pdfjsLib||!window.Tesseract)throw Error("Impossible de lire ce PDF scanné.");
         const pdf=await pdfjsLib.getDocument({data:bytes}).promise,ocr=[];
-        for(let n=1;n<=Math.min(pdf.numPages,6);n++){
-          const page=await pdf.getPage(n),viewport=page.getViewport({scale:2.1}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+        for(let n=1;n<=Math.min(pdf.numPages,8);n++){
+          const page=await pdf.getPage(n),viewport=page.getViewport({scale:2.3}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
           canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);await page.render({canvasContext:ctx,viewport}).promise;
-          ocr.push(await ocrCanvas(canvas,"Lecture PDF page "+n));
+          ocr.push(await ocrCanvas(canvas,"Lecture PDF page "+n,identity?11:6));
+          if(identity)ocr.push(await ocrCanvas(canvas,"Seconde lecture identité page "+n,6));
         }
         text=ocr.join("\n");
       }
       parts.push(text);
     }else{
-      const canvas=await createProcessedCanvasFromImage(file);
-      parts.push(await ocrCanvas(canvas,"Lecture CNI / document"));
+      if(identity){
+        const raw=await ocrOriginalFile(file,"Lecture identité",11);
+        const canvas=await createProcessedCanvasFromImage(file);
+        const enhanced=await ocrCanvas(canvas,"Seconde lecture identité",6);
+        parts.push(raw+"\n"+enhanced);
+      }else{
+        const canvas=await createProcessedCanvasFromImage(file);
+        parts.push(await ocrCanvas(canvas,"Lecture document",6));
+      }
     }
   }
   return parts.join("\n");
@@ -364,7 +393,7 @@ async function handleDocumentImport(files,meta){
   const list=Array.from(files||[]);if(!list.length)return;
   try{
     $("status").textContent="Analyse de "+list.map(x=>x.name).join(", ")+"…";
-    const text=await readImportedDocument(list),parts=meta.split(":"),type=parts[0],kind=parts[1];
+    const text=await readImportedDocument(list,meta),parts=meta.split(":"),type=parts[0],kind=parts[1];
     let result;
     if(type==="vendeur"||type==="acquereur")result=kind==="kbis"?extractCompanyFromKbis(text):extractPersonFromId(text);
     else if(type==="titre")result=extractTitleProperty(text);
