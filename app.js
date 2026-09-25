@@ -249,6 +249,43 @@ function extractDiagnostic(text,type){
   if(type==="audit"){out.audit=true;out.auditDate=date}
   return out;
 }
+
+function extractDiagnosticBundle(text){
+  const t=cleanDocText(text);
+  const defs=[
+    ["erp",/(?:ÉTAT DES RISQUES(?: ET POLLUTIONS?)?|ETAT DES RISQUES(?: ET POLLUTIONS?)?|\bERP\b)/ig,"erpDate"],
+    ["parasitaire",/(?:DIAGNOSTIC|ÉTAT|ETAT)[^\n]{0,80}(?:TERMITES?|PARASITAIRE)|\bTERMITES?\b/ig,"parasitaireDate"],
+    ["plomb",/(?:CONSTAT DE RISQUE D['’]EXPOSITION AU PLOMB|\bCREP\b|DIAGNOSTIC[^\n]{0,50}PLOMB)/ig,"plombDate"],
+    ["amiante",/(?:DIAGNOSTIC|REPÉRAGE|REPERAGE|ÉTAT|ETAT)[^\n]{0,80}AMIANTE|\bAMIANTE\b/ig,"amianteDate"],
+    ["gaz",/(?:ÉTAT|ETAT|DIAGNOSTIC)[^\n]{0,100}(?:INSTALLATION INTÉRIEURE DE GAZ|INSTALLATION INTERIEURE DE GAZ|\bGAZ\b)/ig,"gazDate"],
+    ["electricite",/(?:ÉTAT|ETAT|DIAGNOSTIC)[^\n]{0,100}(?:INSTALLATION INTÉRIEURE D['’]ÉLECTRICITÉ|INSTALLATION INTERIEURE D['’]ELECTRICITE|ÉLECTRICITÉ|ELECTRICITE)/ig,"electriciteDate"],
+    ["dpe",/(?:DIAGNOSTIC DE PERFORMANCE ÉNERGÉTIQUE|DIAGNOSTIC DE PERFORMANCE ENERGETIQUE|\bDPE\b)/ig,"dpeDate"],
+    ["audit",/(?:AUDIT ÉNERGÉTIQUE|AUDIT ENERGETIQUE)/ig,"auditDate"]
+  ];
+  const merged={},summary=[];
+  for(const [type,re,dateKey] of defs){
+    const matches=[...t.matchAll(re)];
+    if(!matches.length)continue;
+    let best=null,bestScore=-999;
+    for(const m of matches){
+      const start=Math.max(0,(m.index||0)-350),end=Math.min(t.length,(m.index||0)+7000);
+      const seg=t.slice(start,end);
+      const r=extractDiagnostic(seg,type);
+      let score=0;
+      if(r[dateKey])score+=50;
+      if(/date (?:du )?(?:diagnostic|rapport|visite)|établi le|réalisé le|réalisée le|effectué le|date de visite|date de mission/i.test(seg))score+=15;
+      if(type==="plomb"&&r.plombResultat)score+=5;
+      if(type==="amiante"&&(r.amiantePriv||r.amianteComm))score+=5;
+      if(score>bestScore){bestScore=score;best=r}
+    }
+    if(best){
+      Object.assign(merged,best);
+      const labels={erp:"ERP",parasitaire:"Termites / parasitaire",plomb:"Plomb",amiante:"Amiante",gaz:"Gaz",electricite:"Électricité",dpe:"DPE",audit:"Audit énergétique"};
+      summary.push(labels[type]+(best[dateKey]?" — "+best[dateKey]:" — date non détectée"));
+    }
+  }
+  return {data:merged,summary};
+}
 async function extractPdfText(bytes){
   if(!window.pdfjsLib)throw Error("Le lecteur PDF n’est pas chargé. Recharge la page.");
   const pdf=await pdfjsLib.getDocument({data:bytes}).promise,parts=[];
@@ -332,7 +369,10 @@ async function handleDocumentImport(files,meta){
     if(type==="vendeur"||type==="acquereur")result=kind==="kbis"?extractCompanyFromKbis(text):extractPersonFromId(text);
     else if(type==="titre")result=extractTitleProperty(text);
     else if(type==="carrez")result=extractCarrez(text);
-    else result=extractDiagnostic(text,type);
+    else if(type==="diagbundle"){
+      const bundle=extractDiagnosticBundle(text);result=bundle.data;
+      if(bundle.summary.length)alert("Diagnostics repérés :\n\n"+bundle.summary.join("\n"));
+    }else result=extractDiagnostic(text,type);
     const useful=Object.entries(result).filter(([k,v])=>v!==""&&v!==false&&v!=null);
     if(!useful.length){alert("Aucune information suffisamment fiable n’a été détectée.");$("status").textContent="";return}
     const preview=useful.map(([k,v])=>k+" : "+v).join("\n");
@@ -424,7 +464,7 @@ if(step===0)h+=`<div class="notice">Tu peux préremplir chaque partie depuis une
 if(step===1)h+=`<div class="box"><strong>Import du titre de propriété</strong><p class="hint">L’application cherche dans le titre : l’adresse du bien, la rubrique « Désignation » (reprise telle quelle), le nom du vendeur pour « Acquis de », puis la date de l’acte et le notaire.</p>${importButton("titre","le titre de propriété")}</div><div class="box"><strong>Type de bien</strong><label class="check"><input type="radio" name="typeBien" value="ancien" ${data.typeBien==="ancien"?"checked":""}>Ancien</label><label class="check"><input type="radio" name="typeBien" value="neuf" ${data.typeBien==="neuf"?"checked":""}>Neuf</label></div><div class="grid">${F("Adresse du bien","adresseBien")}${T("Désignation complète du bien","designation")}${F("Le vendeur a acquis l’immeuble de","origineVendeur")}${F("Acte, Date, Notaire","origineActe")}</div>`;
 if(step===2)h+=`<div class="box"><strong>État d’occupation</strong><label class="check"><input type="radio" name="occupation" value="libre" ${data.occupation==="libre"?"checked":""}>Libre de toute location, occupation, réquisition ou encombrement</label><label class="check"><input type="radio" name="occupation" value="loue" ${data.occupation==="loue"?"checked":""}>Loué selon l’état locatif annexé</label></div>`;
 if(step===3)h+=`<div class="box"><strong>Diagnostic loi Carrez</strong><p class="hint">Importe le rapport de mesurage pour préremplir superficie, date et diagnostiqueur.</p>${importButton("carrez","le diagnostic Carrez")}</div><div class="grid">${F("Superficie loi Carrez","carrez")}${F("Date du métrage","carrezDate","date")}${F("Métrage réalisé par","metreur")}${F("Syndic de copropriété","syndic")}</div>`;
-if(step===4)h+=`<div class="box"><strong>Importer les diagnostics</strong><p class="hint">Chaque rapport peut être importé séparément. Seules les informations détectées sont proposées avant remplissage.</p><div class="importGrid">${importButton("erp","ERP")}${importButton("parasitaire","termites / parasitaire")}${importButton("plomb","plomb")}${importButton("amiante","amiante")}${importButton("gaz","gaz")}${importButton("electricite","électricité")}${importButton("dpe","DPE")}${importButton("audit","audit énergétique")}</div></div><div class="grid">${F("Année de construction de l’immeuble","construction","number")}<div class="field"><label>Assainissement</label><select data-key="assainissement"><option value=""></option><option value="collectif_ok" ${data.assainissement==="collectif_ok"?"selected":""}>Collectif - raccordé</option><option value="collectif_ko" ${data.assainissement==="collectif_ko"?"selected":""}>Collectif - non/mal raccordé</option><option value="non_collectif" ${data.assainissement==="non_collectif"?"selected":""}>Non collectif</option></select></div>${F("Répartition du coût de raccordement","repartitionAssainissement")}${C("État des risques et pollution","erp")}${F("ERP établi le","erpDate","date")}${C("Risques technologiques","erpTech")}${C("Risques naturels","erpNat")}${C("Zone sismique","erpSismique")}${C("Risques miniers","erpMinier")}${C("Secteur d’information sur les sols","erpSis")}<div class="field"><label>Sinistre indemnisé</label><select data-key="sinistre"><option value=""></option><option value="non" ${data.sinistre==="non"?"selected":""}>Non</option><option value="oui" ${data.sinistre==="oui"?"selected":""}>Oui</option></select></div>${C("Diagnostic parasitaire / termites","parasitaire")}${F("Parasitaire établi le","parasitaireDate","date")}${C("Constat plomb","plomb")}${F("Plomb établi le","plombDate","date")}<div class="field"><label>Résultat plomb</label><select data-key="plombResultat"><option value=""></option><option value="absence" ${data.plombResultat==="absence"?"selected":""}>Absence</option><option value="sup" ${data.plombResultat==="sup"?"selected":""}>Présence supérieure aux seuils</option><option value="inf" ${data.plombResultat==="inf"?"selected":""}>Présence inférieure aux seuils</option></select></div>${C("Amiante","amiante")}${F("Amiante établi le","amianteDate","date")}${C("Amiante parties privatives","amiantePriv")}${C("Amiante parties communes","amianteComm")}${C("Gaz","gaz")}${F("Gaz établi le","gazDate","date")}${C("Électricité","electricite")}${F("Électricité établie le","electriciteDate","date")}${C("DPE","dpe")}${F("DPE établi le","dpeDate","date")}${C("Audit énergétique","audit")}${F("Audit établi le","auditDate","date")}</div>`;
+if(step===4)h+=`<div class="box"><strong>Importer les diagnostics</strong><p class="hint">Tu peux importer un DDT complet en une seule fois : l’application repère chaque diagnostic présent, coche la rubrique correspondante et cherche sa date. Tu peux aussi importer les rapports séparément.</p><div class="importRow">${importButton("diagbundle","le rapport complet DDT")}</div><div class="importGrid">${importButton("erp","ERP")}${importButton("parasitaire","termites / parasitaire")}${importButton("plomb","plomb")}${importButton("amiante","amiante")}${importButton("gaz","gaz")}${importButton("electricite","électricité")}${importButton("dpe","DPE")}${importButton("audit","audit énergétique")}</div></div><div class="grid">${F("Année de construction de l’immeuble","construction","number")}<div class="field"><label>Assainissement</label><select data-key="assainissement"><option value=""></option><option value="collectif_ok" ${data.assainissement==="collectif_ok"?"selected":""}>Collectif - raccordé</option><option value="collectif_ko" ${data.assainissement==="collectif_ko"?"selected":""}>Collectif - non/mal raccordé</option><option value="non_collectif" ${data.assainissement==="non_collectif"?"selected":""}>Non collectif</option></select></div>${F("Répartition du coût de raccordement","repartitionAssainissement")}${C("État des risques et pollution","erp")}${F("ERP établi le","erpDate","date")}${C("Risques technologiques","erpTech")}${C("Risques naturels","erpNat")}${C("Zone sismique","erpSismique")}${C("Risques miniers","erpMinier")}${C("Secteur d’information sur les sols","erpSis")}<div class="field"><label>Sinistre indemnisé</label><select data-key="sinistre"><option value=""></option><option value="non" ${data.sinistre==="non"?"selected":""}>Non</option><option value="oui" ${data.sinistre==="oui"?"selected":""}>Oui</option></select></div>${C("Diagnostic parasitaire / termites","parasitaire")}${F("Parasitaire établi le","parasitaireDate","date")}${C("Constat plomb","plomb")}${F("Plomb établi le","plombDate","date")}<div class="field"><label>Résultat plomb</label><select data-key="plombResultat"><option value=""></option><option value="absence" ${data.plombResultat==="absence"?"selected":""}>Absence</option><option value="sup" ${data.plombResultat==="sup"?"selected":""}>Présence supérieure aux seuils</option><option value="inf" ${data.plombResultat==="inf"?"selected":""}>Présence inférieure aux seuils</option></select></div>${C("Amiante","amiante")}${F("Amiante établi le","amianteDate","date")}${C("Amiante parties privatives","amiantePriv")}${C("Amiante parties communes","amianteComm")}${C("Gaz","gaz")}${F("Gaz établi le","gazDate","date")}${C("Électricité","electricite")}${F("Électricité établie le","electriciteDate","date")}${C("DPE","dpe")}${F("DPE établi le","dpeDate","date")}${C("Audit énergétique","audit")}${F("Audit établi le","auditDate","date")}</div>`;
 if(step===5)h+=`<div class="grid">${F("Prix du bien immeuble","prixBien")}${F("Prix des éléments meubles","prixMeubles")}<div class="field"><label>Jouissance</label><select data-key="jouissance"><option value=""></option><option value="possession" ${data.jouissance==="possession"?"selected":""}>Prise de possession réelle</option><option value="loyers" ${data.jouissance==="loyers"?"selected":""}>Perception des loyers</option></select></div></div>`;
 if(step===6)h+=`<div class="grid">${T("Autre(s) condition(s) particulière(s)","autresConditions")}</div>`;
 if(step===7)h+=`<div class="box"><strong>Mode de financement</strong><label class="check"><input type="radio" name="financementMode" value="avec" ${data.financementMode==="avec"?"checked":""}>Avec prêt</label><label class="check"><input type="radio" name="financementMode" value="sans" ${data.financementMode==="sans"?"checked":""}>Sans prêt</label></div><div class="grid">${(()=>{const v=estimateActeFees();return `<div class="field"><label>Provision pour frais d’acte estimés automatiquement</label><input value="${esc(v)}" readonly><small>Calcul selon prix immeuble, ancien/neuf, adresse/département et statut primo-accédant.</small></div>`})()}${F("Honoraires d’agence","honoraires")}${F("Deniers personnels","deniers")}${data.financementMode==="avec"?F("Prêt(s) bancaire(s)","prets")+F("Prêt(s) relais","relais")+F("Emprunt(s) en cours","empruntsCours")+F("Ressources nettes mensuelles","ressources")+F("Montant global des prêts sollicités","montantPrets")+F("Taux d’intérêts maximum","tauxMax")+F("Durée du prêt","dureePret")+F("Charges mensuelles maximum","chargesMax")+T("Organisme(s) financier(s) sollicité(s)","banques"):T("Déclaration manuscrite - acquisition sans prêt","sansPretMention")}</div>`;
