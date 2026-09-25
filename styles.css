@@ -29,3 +29,13 @@ main h2{font-size:18px;margin:0 0 5px;text-transform:uppercase}
 .preview{border:1px dashed #aaa;padding:12px;border-radius:5px;background:#fafafa;font-size:12px;white-space:pre-wrap}
 footer{display:flex;justify-content:space-between;margin-top:22px;gap:10px}
 @media(max-width:850px){.app{grid-template-columns:1fr}.grid{grid-template-columns:1fr}aside{position:static;display:flex;overflow:auto}aside button{white-space:nowrap}main{padding:16px}header{align-items:flex-start;flex-direction:column}}
+.dashboardHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
+.dossierList{display:grid;gap:12px}
+.dossierCard{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;justify-content:space-between;gap:16px;align-items:center;background:#fafafa}
+.dossierCard strong{display:block;margin-bottom:5px}
+.dossierCard small{color:var(--muted)}
+.dossierActions{display:flex;gap:8px;flex-wrap:wrap}
+.dangerBtn{border-color:#b36d6d;color:#8e3434}
+.emptyState{border:1px dashed #aaa;border-radius:8px;padding:26px;text-align:center;background:#fafafa}
+.emptyState p{color:var(--muted);font-size:13px}
+@media(max-width:700px){.dossierCard{align-items:flex-start;flex-direction:column}.dashboardHead{flex-direction:column}}
