@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Compromis Action Immo</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>COMPROMIS DE VENTE</h1>
+    <p>Action Immobilière — remplissage du modèle Word officiel</p>
+  </div>
+  <div class="actions">
+    <span id="status"></span>
+    <button id="templateBtn">Charger le modèle Word</button>
+    <button id="resetBtn">Nouveau dossier</button>
+    <button id="saveBtn">Sauvegarder</button>
+    <button id="generateBtn" class="primary">Générer le Word</button>
+    <input id="templateInput" type="file" accept=".docx" hidden>
+  </div>
+</header>
+<div class="app">
+  <aside id="nav"></aside>
+  <main>
+    <section id="content"></section>
+    <footer>
+      <button id="prev">Précédent</button>
+      <button id="next">Suivant</button>
+    </footer>
+  </main>
+</div>
+<script src="./docx-fill.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
