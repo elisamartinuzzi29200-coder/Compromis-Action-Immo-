@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contrats de location - Action Immobilière</title><link rel="stylesheet" href="./styles.css"></head>
+<body><header><div><h1>CONTRATS DE LOCATION</h1><p>Action Immobilière — sélection du modèle exact</p></div><span id="status"></span></header>
+<main>
+<section class="card">
+<h2>Type de contrat</h2>
+<div class="choices">
+  <div class="choiceBlock"><h3>Location</h3>
+    <label><input type="radio" name="type" value="nu" checked> Logement nu</label>
+    <label><input type="radio" name="type" value="meuble"> Logement meublé</label>
+  </div>
+  <div class="choiceBlock"><h3>Gestion</h3>
+    <label><input type="radio" name="gestion" value="gestion" checked> Gestion Action Immobilière</label>
+    <label><input type="radio" name="gestion" value="hors"> Hors gestion</label>
+  </div>
+</div>
+<div id="selection" class="selection"></div>
+<button class="primary" id="downloadBtn">Télécharger le contrat sélectionné</button>
+</section>
+
+<section class="card">
+<h2>Chargement des 4 modèles Word</h2>
+<p class="hint">À faire une seule fois sur chaque navigateur. Les fichiers restent stockés localement et ne sont pas envoyés sur un serveur.</p>
+<div id="templates"></div>
+</section>
+</main>
+<script src="./app.js"></script></body></html>
