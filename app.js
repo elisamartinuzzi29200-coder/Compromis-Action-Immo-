@@ -93,43 +93,23 @@ function extractSiret(s){
 function extractPersonFromId(text){
   const t=cleanDocText(text);
   const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
-  const after=(re,span=1)=>{
-    for(let i=0;i<lines.length;i++){
-      const m=lines[i].match(re);if(!m)continue;
-      const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-()]+/,"").trim();
-      if(same)return same;
-      const vals=[];
-      for(let j=1;j<=span&&lines[i+j];j++){
-        if(/^(?:Nationalit|Sexe|Taille|Couleur|Date |Lieu |Autorit|Passeport|Domicile|Type\/|Code du pays)/i.test(lines[i+j]))break;
-        vals.push(lines[i+j]);
-      }
-      return vals.join(" ").trim();
+  const cleanMrz=x=>String(x||"").toUpperCase().replace(/[ «‹›]/g,"<").replace(/[^A-Z0-9<]/g,"");
+  const mrzLines=lines.map(cleanMrz).filter(x=>x.length>=30);
+  let mrz1=mrzLines.find(x=>/^P<[A-Z]{3}/.test(x))||"";
+  let mrz2="";
+  if(mrz1){const idx=mrzLines.indexOf(mrz1);mrz2=mrzLines.slice(idx+1).find(x=>x.length>=40)||""}
+
+  let nom="",prenoms="",naissance="",lieu="",adresse="";
+  if(mrz1){
+    const m=mrz1.match(/^P<[A-Z]{3}([^<]+(?:<[^<]+)*)<<(.+)$/);
+    if(m){
+      nom=m[1].replace(/<+/g," ").trim();
+      prenoms=m[2].replace(/<+/g," ").trim();
     }
-    return "";
-  };
-
-  let nom=after(/^(?:Nom\s*\/\s*Surname(?:\s*\(\d+\))?|NOM|SURNAME)\s*:?\s*/i);
-  let prenoms=after(/^(?:Pr[ée]noms?\s*\/\s*Given names?(?:\s*\(\d+\))?|PR[ÉE]NOMS?|GIVEN NAMES?)\s*:?\s*/i);
-  let naissance=after(/^(?:Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?|DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)\s*:?\s*/i);
-  let lieu=after(/^(?:Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?|LIEU DE NAISSANCE|PLACE OF BIRTH)\s*:?\s*/i);
-  let adresse=after(/^(?:Domicile\s*\/\s*Residence(?:\s*\(\d+\))?|DOMICILE|ADRESSE)\s*:?\s*/i,3);
-
-  // Labels may be OCR'd on the same line as their values.
-  if(!nom){const m=t.match(/Nom\s*\/\s*Surname(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' .\-]{1,60})/i);if(m)nom=m[1]}
-  if(!prenoms){const m=t.match(/Pr[ée]noms?\s*\/\s*Given names?(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ,' .\-]{1,80})/i);if(m)prenoms=m[1]}
-  if(!naissance){const m=t.match(/Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?[^0-9]{0,30}(\d{1,2}[\s\/\.\-]+\d{1,2}[\s\/\.\-]+\d{2,4})/i);if(m)naissance=m[1]}
-  if(!lieu){const m=t.match(/Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' .\-]{2,80})/i);if(m)lieu=m[1]}
-  if(!adresse){const m=t.match(/Domicile\s*\/\s*Residence(?:\s*\(\d+\))?\s*[:\-]?\s*([^\n]{5,120}(?:\n[^\n]{2,80})?)/i);if(m)adresse=m[1]}
-
-  // Passport MRZ: P<FRA[SURNAME]<<GIVEN<NAMES...
-  const mrzLines=lines.map(x=>x.replace(/\s/g,"")).filter(x=>/^[A-Z0-9<]{25,}$/.test(x));
-  const mrz1=mrzLines.find(x=>/^P</.test(x))||"";
-  const mrz2=mrzLines.find(x=>x!==mrz1&&/^[A-Z0-9<]{30,}$/.test(x))||"";
-  const nm=mrz1.match(/^P<[A-Z]{3}([A-Z<]+)<<([A-Z<]+)/);
-  if(!nom&&nm)nom=nm[1].replace(/</g," ").trim();
-  if(!prenoms&&nm)prenoms=nm[2].replace(/</g," ").trim();
-  if(!naissance&&mrz2){
-    const m=mrz2.match(/^[A-Z0-9<]{9}\d[A-Z]{3}(\d{6})\d/);
+  }
+  if(mrz2){
+    const z=mrz2.replace(/O/g,"0");
+    const m=z.match(/^[A-Z0-9<]{9}[0-9][A-Z]{3}([0-9]{6})[0-9]/);
     if(m){
       const yy=Number(m[1].slice(0,2)),mm=m[1].slice(2,4),dd=m[1].slice(4,6);
       const currentYY=new Date().getFullYear()%100,century=yy>currentYY?"19":"20";
@@ -137,11 +117,45 @@ function extractPersonFromId(text){
     }
   }
 
-  const cleanName=v=>String(v||"").replace(/\b(?:Nom|Surname|Pr[ée]noms?|Given names?)\b.*$/i,"").replace(/[<>]/g," ").replace(/\s{2,}/g," ").trim();
+  const after=(re,span=2)=>{
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(re);if(!m)continue;
+      const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-()]+/,"").trim();
+      if(same)return same;
+      const vals=[];
+      for(let j=1;j<=span&&lines[i+j];j++){
+        if(/^(?:Nationalit|Sexe|Taille|Couleur|Date |Lieu |Autorit|Passeport|Domicile|Type|Code du pays)/i.test(lines[i+j]))break;
+        vals.push(lines[i+j]);
+      }
+      return vals.join(" ").trim();
+    }
+    return "";
+  };
+
+  if(!nom)nom=after(/^(?:Nom\s*\/\s*Surname(?:\s*\(\d+\))?|NOM|SURNAME)\s*:?\s*/i,1);
+  if(!prenoms)prenoms=after(/^(?:Pr[ée]noms?\s*\/\s*Given names?(?:\s*\(\d+\))?|PR[ÉE]NOMS?|GIVEN NAMES?)\s*:?\s*/i,1);
+  if(!naissance)naissance=after(/^(?:Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?|DATE DE NAISSANCE|DATE OF BIRTH|N[ÉE]\(E\)? LE)\s*:?\s*/i,1);
+  lieu=after(/^(?:Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?|LIEU DE NAISSANCE|PLACE OF BIRTH)\s*:?\s*/i,1);
+  adresse=after(/^(?:Domicile\s*\/\s*Residence(?:\s*\(\d+\))?|DOMICILE|ADRESSE)\s*:?\s*/i,3);
+
+  if(!naissance){
+    const m=t.match(/Date de naissance\s*\/\s*Date of birth(?:\s*\(\d+\))?[^0-9]{0,40}(\d{1,2}[\s\/\.\-]+\d{1,2}[\s\/\.\-]+\d{2,4})/i);
+    if(m)naissance=m[1];
+  }
+  if(!lieu){
+    const m=t.match(/Lieu de naissance\s*\/\s*Place of birth(?:\s*\(\d+\))?\s*[:\-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' .\-]{2,80})/i);
+    if(m)lieu=m[1];
+  }
+  if(!adresse){
+    const m=t.match(/Domicile\s*\/\s*Residence(?:\s*\(\d+\))?\s*[:\-]?\s*([^\n]{5,100}(?:\n[^\n]{2,60}){0,2})/i);
+    if(m)adresse=m[1];
+  }
+
+  const cleanName=v=>String(v||"").replace(/[<>]/g," ").replace(/\s{2,}/g," ").trim();
   nom=cleanName(nom).replace(/\b(?:Nationalit|Française|Francaise).*$/i,"").trim();
   prenoms=cleanName(prenoms).replace(/\b(?:Nationalit|Sexe|Taille).*$/i,"").trim();
   lieu=String(lieu||"").replace(/\b(?:Date de d[ée]livrance|Domicile|Autorit[ée]).*$/i,"").replace(/\s{2,}/g," ").trim();
-  adresse=String(adresse||"").replace(/\b(?:FRANCE|FRA)\b.*$/i,"").replace(/\s{2,}/g," ").trim();
+  adresse=String(adresse||"").replace(/\b(?:Date d['’]expiration|Autorit[ée]).*$/i,"").replace(/\s{2,}/g," ").trim();
 
   return {nom,prenoms,naissance:normalizeDateFr(naissance),lieuNaissance:lieu,adresse};
 }
@@ -180,9 +194,10 @@ function extractTitleProperty(text){
   const sellerBlock=sectionValue(t,/(?:^|\n)\s*Par\s*:\s*/im,/(?:^|\n)\s*Au profit de\s*:\s*/im,5000);
   if(sellerBlock){
     const names=[];
-    const re=/(?:Monsieur|Madame|Mademoiselle|M\.|Mme)\s+([A-ZÀ-ÖØ-Ýa-zà-öø-ÿ' -]*?[A-ZÀ-ÖØ-Ý]{2,})(?=,|\s+(?:électronicien|agent|demeurant|né|née|profession|sans profession)|\n|$)/g;
+    const re=/(?:Monsieur|Madame|Mademoiselle|M\.|Mme)\s+([^,\n]{3,120})/gi;
     for(const nm of sellerBlock.matchAll(re)){
-      const v=nm[1].replace(/\s+/g," ").trim();
+      let v=nm[1].replace(/\s+/g," ").trim();
+      v=v.replace(/\s+(?:demeurant|né|née|profession|électronicien|agent|sans profession).*$/i,"").trim();
       if(v&&!names.includes(v))names.push(v);
     }
     origineVendeur=names.join(" / ");
@@ -315,38 +330,75 @@ async function extractPdfText(bytes){
   }
   return parts.join("\n");
 }
-async function createProcessedCanvasFromImage(file){
+async function loadImageFile(file){
   const url=URL.createObjectURL(file);
+  try{return await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url})}
+  finally{setTimeout(()=>URL.revokeObjectURL(url),0)}
+}
+function canvasFromImage(img,crop,scale){
+  crop=crop||{x:0,y:0,w:img.width,h:img.height};scale=scale||1;
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(crop.w*scale));canvas.height=Math.max(1,Math.round(crop.h*scale));
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(img,crop.x,crop.y,crop.w,crop.h,0,0,canvas.width,canvas.height);
+  return canvas;
+}
+function enhanceCanvas(canvas,strong){
+  const ctx=canvas.getContext("2d",{willReadFrequently:true}),im=ctx.getImageData(0,0,canvas.width,canvas.height),d=im.data;
+  for(let i=0;i<d.length;i+=4){
+    const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    const v=strong?(g<150?0:g>225?255:Math.max(0,Math.min(255,(g-135)*1.8+128))):(g<115?0:g>238?255:Math.max(0,Math.min(255,(g-120)*1.35+120)));
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(im,0,0);return canvas;
+}
+async function ocrConfigured(image,label,lang,params){
+  if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
+  const worker=await Tesseract.createWorker(lang||"fra+eng",1,{logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"}});
   try{
-    const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url});
-    const scale=Math.max(1.8,Math.min(3.2,2600/Math.max(img.width,img.height)));
-    const canvas=document.createElement("canvas");
-    canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
-    const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    const im=ctx.getImageData(0,0,canvas.width,canvas.height),d=im.data;
-    for(let i=0;i<d.length;i+=4){
-      const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-      const v=g<115?0:g>235?255:Math.max(0,Math.min(255,(g-120)*1.35+120));
-      d[i]=d[i+1]=d[i+2]=v;
+    if(params)await worker.setParameters(params);
+    const r=await worker.recognize(image);return r.data.text||"";
+  }finally{await worker.terminate()}
+}
+async function ocrIdentityImage(file){
+  const img=await loadImageFile(file);
+  const full=enhanceCanvas(canvasFromImage(img,null,Math.max(1.5,Math.min(2.6,2600/Math.max(img.width,img.height)))),false);
+  const fullText=await ocrConfigured(full,"Lecture identité","fra+eng",{tessedit_pageseg_mode:"11"});
+  const y=Math.floor(img.height*0.68),crop={x:0,y,w:img.width,h:img.height-y};
+  const mrz=enhanceCanvas(canvasFromImage(img,crop,Math.max(2,Math.min(3.4,3200/img.width))),true);
+  const mrzText=await ocrConfigured(mrz,"Lecture zone MRZ","eng",{tessedit_pageseg_mode:"6",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<"});
+  return fullText+"\n"+mrzText;
+}
+async function extractPdfText(bytes){
+  if(!window.pdfjsLib)throw Error("Le lecteur PDF n’est pas chargé. Recharge la page.");
+  const pdf=await pdfjsLib.getDocument({data:bytes}).promise,parts=[];
+  for(let n=1;n<=Math.min(pdf.numPages,30);n++){
+    const page=await pdf.getPage(n),tc=await page.getTextContent();
+    const items=tc.items.filter(x=>x.str&&x.str.trim()).map(x=>({s:x.str.trim(),x:x.transform[4],y:x.transform[5]}));
+    items.sort((a,b)=>Math.abs(b.y-a.y)>2?b.y-a.y:a.x-b.x);
+    const lines=[];let cur=[],last=null;
+    for(const it of items){if(last===null||Math.abs(it.y-last)<=2){cur.push(it);last=last===null?it.y:(last+it.y)/2}else{lines.push(cur.sort((a,b)=>a.x-b.x).map(z=>z.s).join(" "));cur=[it];last=it.y}}
+    if(cur.length)lines.push(cur.sort((a,b)=>a.x-b.x).map(z=>z.s).join(" "));
+    parts.push(lines.join("\n"));
+  }
+  return parts.join("\n");
+}
+async function ocrPdfPages(bytes,meta){
+  const pdf=await pdfjsLib.getDocument({data:bytes}).promise,parts=[];
+  const identity=/^(vendeur|acquereur):cni/.test(meta||""),title=(meta||"")==="titre";
+  const max=identity?1:title?Math.min(pdf.numPages,3):Math.min(pdf.numPages,8);
+  for(let n=1;n<=max;n++){
+    const page=await pdf.getPage(n),viewport=page.getViewport({scale:title?2.9:2.4}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:ctx,viewport}).promise;
+    parts.push(await ocrConfigured(canvas,(title?"Lecture titre page ":"Lecture PDF page ")+n,"fra+eng",{tessedit_pageseg_mode:title?"6":"11"}));
+    if(identity){
+      const y=Math.floor(canvas.height*0.68),mrz=document.createElement("canvas"),mctx=mrz.getContext("2d",{willReadFrequently:true});
+      mrz.width=canvas.width;mrz.height=canvas.height-y;mctx.drawImage(canvas,0,y,canvas.width,canvas.height-y,0,0,mrz.width,mrz.height);enhanceCanvas(mrz,true);
+      parts.push(await ocrConfigured(mrz,"Lecture zone MRZ","eng",{tessedit_pageseg_mode:"6",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<"}));
     }
-    ctx.putImageData(im,0,0);return canvas;
-  }finally{URL.revokeObjectURL(url)}
-}
-async function ocrCanvas(canvas,label,psm){
-  if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
-  const res=await Tesseract.recognize(canvas,"fra+eng",{
-    logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"},
-    tessedit_pageseg_mode:String(psm||6)
-  });
-  return res.data.text||"";
-}
-async function ocrOriginalFile(file,label,psm){
-  if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
-  const res=await Tesseract.recognize(file,"fra+eng",{
-    logger:m=>{if(m.status==="recognizing text")$("status").textContent=(label||"Lecture du document")+"… "+Math.round((m.progress||0)*100)+"%"},
-    tessedit_pageseg_mode:String(psm||11)
-  });
-  return res.data.text||"";
+  }
+  return parts.join("\n");
 }
 async function readImportedDocument(files,meta){
   const list=Array.from(files||[]),parts=[],identity=/^(vendeur|acquereur):cni/.test(meta||"");
@@ -355,28 +407,13 @@ async function readImportedDocument(files,meta){
     if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
       const bytes=new Uint8Array(await file.arrayBuffer());
       let text=await extractPdfText(bytes);
-      if(text.replace(/\s/g,"").length<100){
-        if(!window.pdfjsLib||!window.Tesseract)throw Error("Impossible de lire ce PDF scanné.");
-        const pdf=await pdfjsLib.getDocument({data:bytes}).promise,ocr=[];
-        for(let n=1;n<=Math.min(pdf.numPages,8);n++){
-          const page=await pdf.getPage(n),viewport=page.getViewport({scale:2.3}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
-          canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);await page.render({canvasContext:ctx,viewport}).promise;
-          ocr.push(await ocrCanvas(canvas,"Lecture PDF page "+n,identity?11:6));
-          if(identity)ocr.push(await ocrCanvas(canvas,"Seconde lecture identité page "+n,6));
-        }
-        text=ocr.join("\n");
-      }
+      if(text.replace(/\s/g,"").length<100||identity||(meta||"")==="titre")text=await ocrPdfPages(bytes,meta);
       parts.push(text);
+    }else if(identity){
+      parts.push(await ocrIdentityImage(file));
     }else{
-      if(identity){
-        const raw=await ocrOriginalFile(file,"Lecture identité",11);
-        const canvas=await createProcessedCanvasFromImage(file);
-        const enhanced=await ocrCanvas(canvas,"Seconde lecture identité",6);
-        parts.push(raw+"\n"+enhanced);
-      }else{
-        const canvas=await createProcessedCanvasFromImage(file);
-        parts.push(await ocrCanvas(canvas,"Lecture document",6));
-      }
+      const img=await loadImageFile(file),canvas=enhanceCanvas(canvasFromImage(img,null,Math.max(1.6,Math.min(2.8,2800/Math.max(img.width,img.height)))),false);
+      parts.push(await ocrConfigured(canvas,"Lecture document","fra+eng",{tessedit_pageseg_mode:"6"}));
     }
   }
   return parts.join("\n");
