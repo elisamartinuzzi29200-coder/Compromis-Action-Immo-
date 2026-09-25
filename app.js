@@ -272,7 +272,7 @@ function extractDiagnostic(text,type){
   if(type==="erp"){out.erp=true;out.erpDate=date;out.erpTech=/risques? technologiques?/i.test(t);out.erpNat=/risques? naturels?/i.test(t);out.erpMinier=/risques? miniers?/i.test(t);out.erpSismique=/sismique|sismicit[ée]/i.test(t);out.erpSis=/secteur d'information sur les sols|\bSIS\b/i.test(t)}
   if(type==="parasitaire"){out.parasitaire=true;out.parasitaireDate=date}
   if(type==="plomb"){out.plomb=true;out.plombDate=date;if(/absence.*plomb|aucune unit[ée].*plomb/i.test(t))out.plombResultat="absence";else if(/sup[ée]rieur.*seuil|classe 3/i.test(t))out.plombResultat="sup";else if(/inf[ée]rieur.*seuil|classe [12]/i.test(t))out.plombResultat="inf"}
-  if(type==="amiante"){out.amiante=true;out.amianteDate=date;out.amiantePriv=/parties privatives/i.test(t);out.amianteComm=/parties communes|\bDTA\b/i.test(t);if(/absence\s+(?:de|d[’\']|des)?\s*(?:mat[ée]riaux|produits|traces)?[^.\n]{0,80}amiante|aucun[^.\n]{0,80}amiante|ne (?:contient|pr[ée]sente)[^.\n]{0,80}amiante/i.test(t))out.amianteResultat="absence";else if(/pr[ée]sence\s+(?:de|d[’\']|des)?[^.\n]{0,80}amiante|mat[ée]riaux[^.\n]{0,80}contenant[^.\n]{0,40}amiante|contient[^.\n]{0,80}amiante/i.test(t))out.amianteResultat="presence"}
+  if(type==="amiante"){out.amiante=true;out.amianteDate=date;out.amiantePriv=/parties privatives/i.test(t);out.amianteComm=/parties communes|\bDTA\b/i.test(t)}
   if(type==="gaz"){out.gaz=true;out.gazDate=date}
   if(type==="electricite"){out.electricite=true;out.electriciteDate=date}
   if(type==="dpe"){out.dpe=true;out.dpeDate=date}
