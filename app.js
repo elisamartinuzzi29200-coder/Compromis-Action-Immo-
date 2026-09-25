@@ -207,8 +207,38 @@ function extractCarrez(text){
 }
 function extractDiagnostic(text,type){
   const t=cleanDocText(text),out={};
-  const dm=t.match(/(?:date (?:du )?(?:diagnostic|rapport)|[ée]tabli le|r[ée]alis[ée] le|effectu[ée] le)\s*:?\s*(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})/i);
-  const date=dm?normalizeDateFr(dm[1]):"";
+  const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+
+  function scoreDateCandidate(raw,context){
+    const d=normalizeDateFr(raw);if(!d)return null;
+    let score=0;const c=String(context||"");
+    if(/date (?:du )?(?:diagnostic|rapport|contr[oô]le|visite|inspection)/i.test(c))score+=12;
+    if(/[ée]tabli le|r[ée]alis[ée] le|effectu[ée] le|visit[ée] le|inspect[ée] le|date de visite|date de mission/i.test(c))score+=12;
+    if(/diagnostic de performance [ée]nerg[ée]tique|\bDPE\b/i.test(c)&&type==="dpe")score+=8;
+    if(/amiante/i.test(c)&&type==="amiante")score+=8;
+    if(/gaz/i.test(c)&&type==="gaz")score+=8;
+    if(/[ée]lectricit[ée]/i.test(c)&&type==="electricite")score+=8;
+    if(/plomb|CREP/i.test(c)&&type==="plomb")score+=8;
+    if(/termites?|parasitaire/i.test(c)&&type==="parasitaire")score+=8;
+    if(/risques? et pollution|\bERP\b/i.test(c)&&type==="erp")score+=8;
+    if(/audit [ée]nerg[ée]tique/i.test(c)&&type==="audit")score+=8;
+    if(/validit[ée]|valable jusqu|expiration|fin de validit[ée]/i.test(c))score-=15;
+    if(/construction|permis|facture|commande|impression/i.test(c))score-=8;
+    return {d,score};
+  }
+
+  const candidates=[];
+  for(let i=0;i<lines.length;i++){
+    const ctx=[lines[i-1]||"",lines[i],lines[i+1]||""].join(" ");
+    for(const m of ctx.matchAll(/\b(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4})\b/g)){
+      const s=scoreDateCandidate(m[1],ctx);if(s)candidates.push(s);
+    }
+  }
+  const labeled=t.match(/(?:date (?:du )?(?:diagnostic|rapport|contr[oô]le|visite|inspection)|[ée]tabli le|r[ée]alis[ée] le|effectu[ée] le|visit[ée] le|inspect[ée] le|date de visite|date de mission)\s*:?\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{4})/i);
+  if(labeled)candidates.push({d:normalizeDateFr(labeled[1]),score:30});
+  candidates.sort((a,b)=>b.score-a.score);
+  const date=(candidates[0]&&candidates[0].score>0)?candidates[0].d:"";
+
   if(type==="erp"){out.erp=true;out.erpDate=date;out.erpTech=/risques? technologiques?/i.test(t);out.erpNat=/risques? naturels?/i.test(t);out.erpMinier=/risques? miniers?/i.test(t);out.erpSismique=/sismique|sismicit[ée]/i.test(t);out.erpSis=/secteur d'information sur les sols|\bSIS\b/i.test(t)}
   if(type==="parasitaire"){out.parasitaire=true;out.parasitaireDate=date}
   if(type==="plomb"){out.plomb=true;out.plombDate=date;if(/absence.*plomb|aucune unit[ée].*plomb/i.test(t))out.plombResultat="absence";else if(/sup[ée]rieur.*seuil|classe 3/i.test(t))out.plombResultat="sup";else if(/inf[ée]rieur.*seuil|classe [12]/i.test(t))out.plombResultat="inf"}
