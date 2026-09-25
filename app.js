@@ -426,66 +426,19 @@ function applyImportResult(meta,result){
   }else Object.assign(data,result);
   saveDossier();render();
 }
-const AI_DOCUMENT_ENDPOINT="https://soft-sunset-72b4.elisa-martinuzzi29200.workers.dev";
-
-async function analyzeDocumentWithAI(file,type){
-  const form=new FormData();
-  form.append("file",file);
-  form.append("type",type);
-  const response=await fetch(AI_DOCUMENT_ENDPOINT,{method:"POST",body:form});
-  let payload={};
-  try{payload=await response.json()}catch{}
-  if(!response.ok)throw new Error(payload.error||("Erreur du service d’analyse ("+response.status+")"));
-  if(!payload||!payload.result)throw new Error("Le service n’a retourné aucune donnée.");
-  return payload.result;
-}
-
-async function analyzeIdentityFilesWithAI(files){
-  const merged={nom:"",prenoms:"",naissance:"",lieuNaissance:"",adresse:""};
-  for(const file of Array.from(files||[])){
-    $("status").textContent="Analyse IA de "+file.name+"…";
-    const r=await analyzeDocumentWithAI(file,"identity");
-    if(!merged.nom&&r.nom)merged.nom=r.nom;
-    if(!merged.prenoms&&r.prenoms)merged.prenoms=r.prenoms;
-    if(!merged.naissance&&r.dateNaissance)merged.naissance=r.dateNaissance;
-    if(!merged.lieuNaissance&&r.lieuNaissance)merged.lieuNaissance=r.lieuNaissance;
-    if(!merged.adresse&&r.adresse)merged.adresse=r.adresse;
-  }
-  return merged;
-}
-
-async function analyzeTitleWithAI(file){
-  $("status").textContent="Analyse IA du titre de propriété…";
-  const r=await analyzeDocumentWithAI(file,"title");
-  return {
-    adresseBien:r.adresseBien||"",
-    designation:r.designation||"",
-    origineVendeur:r.origineVendeur||"",
-    origineActe:[r.dateActe?("Acte du "+r.dateActe):"",r.notaire||""].filter(Boolean).join(" — ")
-  };
-}
-
 async function handleDocumentImport(files,meta){
   const list=Array.from(files||[]);if(!list.length)return;
   try{
-    const parts=meta.split(":"),type=parts[0],kind=parts[1];
+    $("status").textContent="Analyse locale de "+list.map(x=>x.name).join(", ")+"…";
+    const text=await readImportedDocument(list,meta),parts=meta.split(":"),type=parts[0],kind=parts[1];
     let result;
-
-    // CNI / passeports and property titles use the secure AI backend.
-    if((type==="vendeur"||type==="acquereur")&&kind!=="kbis"){
-      result=await analyzeIdentityFilesWithAI(list);
-    }else if(type==="titre"){
-      result=await analyzeTitleWithAI(list[0]);
-    }else{
-      $("status").textContent="Analyse de "+list.map(x=>x.name).join(", ")+"…";
-      const text=await readImportedDocument(list,meta);
-      if(type==="vendeur"||type==="acquereur")result=extractCompanyFromKbis(text);
-      else if(type==="carrez")result=extractCarrez(text);
-      else if(type==="diagbundle"){
-        const bundle=extractDiagnosticBundle(text);result=bundle.data;
-        if(bundle.summary.length)alert("Diagnostics repérés :\n\n"+bundle.summary.join("\n"));
-      }else result=extractDiagnostic(text,type);
-    }
+    if(type==="vendeur"||type==="acquereur")result=kind==="kbis"?extractCompanyFromKbis(text):extractPersonFromId(text);
+    else if(type==="titre")result=extractTitleProperty(text);
+    else if(type==="carrez")result=extractCarrez(text);
+    else if(type==="diagbundle"){
+      const bundle=extractDiagnosticBundle(text);result=bundle.data;
+      if(bundle.summary.length)alert("Diagnostics repérés :\n\n"+bundle.summary.join("\n"));
+    }else result=extractDiagnostic(text,type);
 
     const useful=Object.entries(result).filter(([k,v])=>v!==""&&v!==false&&v!=null);
     if(!useful.length){
@@ -496,12 +449,13 @@ async function handleDocumentImport(files,meta){
 
     const labels={
       nom:"Nom",prenoms:"Prénom(s)",naissance:"Date de naissance",lieuNaissance:"Lieu de naissance",adresse:"Adresse",
+      societe:"Société",siret:"SIRET",siegeSocial:"Siège social",
       adresseBien:"Adresse du bien",designation:"Désignation",origineVendeur:"Acquis de",origineActe:"Date / notaire",
       carrez:"Superficie Carrez",carrezDate:"Date Carrez",metreur:"Diagnostiqueur"
     };
     const preview=useful.map(([k,v])=>(labels[k]||k)+" : "+v).join("\n");
     if(confirm("Informations détectées :\n\n"+preview+"\n\nLes appliquer au dossier ?"))applyImportResult(meta,result);
-    $("status").textContent="Document analysé";
+    $("status").textContent="Document analysé localement";
   }catch(e){
     $("status").textContent="";
     alert("Impossible de lire ce document : "+e.message);
