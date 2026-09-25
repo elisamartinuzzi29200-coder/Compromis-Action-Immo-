@@ -55,13 +55,14 @@ function appendBordereau(doc,data){
 ["FINANCEMENT ACQUÉREUR",["Simulation de financement","Accord de principe bancaire","Attestation de courtier","Offre de prêt","Refus de prêt","Justificatif d’apport personnel","Plan de financement","Justificatif prêt relais"]],
 ["AUTRES ANNEXES",["Photographies annexées","Inventaire du mobilier","Liste des éléments inclus dans la vente","Liste des éléments exclus de la vente","Clés / badges / télécommandes - inventaire","Documents techniques divers","Correspondances utiles","Autre document"]]
   ];
+  let count=0;
   for(const [cat,docs] of cats){
+    const selected=docs.filter(d=>data.bordereau&&data.bordereau[d]);
+    if(!selected.length)continue;
     addP(cat,true,22,false);
-    for(const d of docs)addP(((data.bordereau&&data.bordereau[d])?"☒ ":"☐ ")+d,false,20,false);
+    for(const d of selected){addP("☒ "+d,false,20,false);count++}
   }
-  addP("Observations / documents complémentaires :",true,20,false);
-  addP("........................................................................................................................",false,20,false);
-  addP("........................................................................................................................",false,20,false);
+  if(!count)addP("Aucun document sélectionné.",false,20,false);
 }
 async function buildCompromis(templateBytes,data){const files=await unzip(templateBytes),xf=files.find(f=>f.name==="word/document.xml");if(!xf)throw Error("Modèle Word incomplet");const doc=new DOMParser().parseFromString(td.decode(xf.data),"application/xml"),sn=data.vendeurs.map(p=>(p.nom+" "+p.prenoms).trim()).filter(Boolean).join(" / "),an=data.acquereurs.map(p=>(p.nom+" "+p.prenoms).trim()).filter(Boolean).join(" / ");
 setBox(doc,"Zone de texte 218",0,sn);setBox(doc,"Zone de texte 219",0,an);setBox(doc,"Zone de texte 6",0,data.vendeurs.map(p=>personText(p,false)).join("\n")+"\nD’une part,");setBox(doc,"Zone de texte 7",0,data.acquereurs.map(p=>personText(p,true)).join("\n")+"\nD’autre part.");setBox(doc,"Zone de texte 2",0,data.adresseBien);setBox(doc,"Zone de texte 8",0,data.designation,true);setBox(doc,"Zone de texte 2",1,data.origineVendeur);setBox(doc,"Zone de texte 2",2,data.origineActe);
