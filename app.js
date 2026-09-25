@@ -46,6 +46,143 @@ try{
   }
 }catch{}
 const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+
+let pendingImport=null;
+function importButton(type,label,kind,index){
+  const parts=[type];
+  if(kind!==undefined&&kind!=="")parts.push(kind);
+  if(index!==undefined&&index!=="")parts.push(String(index));
+  return '<button type="button" class="importBtn" data-import="'+esc(parts.join(":"))+'">Importer '+esc(label)+'</button>';
+}
+function normalizeDateFr(v){
+  const m=String(v||"").match(/\b(\d{1,2})[\\/.\-](\d{1,2})[\\/.\-](\d{2,4})\b/);
+  if(!m)return "";
+  let y=m[3];if(y.length===2)y=(Number(y)>40?"19":"20")+y;
+  return y.padStart(4,"0")+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+}
+function cleanDocText(s){return String(s||"").replace(/\u00ad/g,"").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim()}
+function lineValue(text,labelRe){
+  const lines=cleanDocText(text).split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const m=lines[i].match(labelRe);if(!m)continue;
+    const same=lines[i].slice((m.index||0)+m[0].length).replace(/^[\s:;\-]+/,"").trim();
+    if(same)return same;
+    if(lines[i+1])return lines[i+1];
+  }
+  return "";
+}
+function sectionValue(text,startRe,endRe,maxLen){
+  const t=cleanDocText(text),m=t.match(startRe);if(!m)return "";
+  const pos=(m.index||0)+m[0].length,rest=t.slice(pos);
+  const e=endRe?rest.search(endRe):-1;
+  return cleanDocText((e>=0?rest.slice(0,e):rest.slice(0,maxLen||5000)).trim());
+}
+function extractSiret(s){
+  const m=String(s||"").replace(/[.\-]/g," ").match(/\b(?:SIRET\s*:?\s*)?(\d{3}\s?\d{3}\s?\d{3}\s?\d{5})\b/i);
+  return m?m[1].replace(/\s/g,""):"";
+}
+function extractPersonFromId(text){
+  const t=cleanDocText(text);
+  let nom=lineValue(t,/^(?:NOM|Nom)\b\s*:?\s*/i);
+  let prenoms=lineValue(t,/^(?:PR[ÉE]NOMS?|Pr[ée]nom(?:s)?)\b\s*:?\s*/i);
+  let naissance=lineValue(t,/(?:N[ÉE]\(E\)? LE|DATE DE NAISSANCE|Date de naissance)\s*:?\s*/i);
+  let lieu=lineValue(t,/(?:LIEU DE NAISSANCE|Lieu de naissance)\s*:?\s*/i);
+  if(!naissance){const d=t.match(/\b(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})\b/);if(d)naissance=d[1]}
+  nom=nom.replace(/[<>]/g," ").replace(/\s{2,}.*/,"").trim();
+  prenoms=prenoms.replace(/[<>]/g," ").replace(/\s{2,}.*/,"").trim();
+  lieu=lieu.replace(/\s{2,}.*/,"").trim();
+  return {nom,prenoms,naissance:normalizeDateFr(naissance),lieuNaissance:lieu};
+}
+function extractCompanyFromKbis(text){
+  const t=cleanDocText(text);
+  let societe=lineValue(t,/(?:D[ÉE]NOMINATION|Dénomination|RAISON SOCIALE)\s*:?\s*/i);
+  let siege=lineValue(t,/(?:SI[ÈE]GE SOCIAL|Adresse du si[èe]ge|Adresse de l'entreprise)\s*:?\s*/i);
+  const siret=extractSiret(t);
+  if(!societe){const lines=t.split(/\n/).map(x=>x.trim()).filter(Boolean);societe=lines.find(x=>/^(SCI|SARL|SAS|SASU|EURL|SA|SNC)\b/i.test(x))||""}
+  return {societe,siret,siegeSocial:siege};
+}
+function extractTitleProperty(text){
+  const t=cleanDocText(text);
+  let designation=sectionValue(t,/(?:D[ÉE]SIGNATION|DESIGNATION)\b\s*:?\s*/i,/(?:ORIGINE DE PROPRI[ÉE]T[ÉE]|EFFET RELATIF|PROPRI[ÉE]T[ÉE][ -]JOUISSANCE|CHARGES ET CONDITIONS|SERVITUDES|URBANISME)\b/i,12000);
+  designation=designation.replace(/^\s*[:.\-]+/,"").trim();
+  let date="";const dm=t.match(/(?:en date du|reçu le|acte[^\n]{0,80}?du)\s*(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})/i);if(dm)date=dm[1];
+  let notaire="";const nm=t.match(/(?:Ma[iî]tre|Me)\s+([A-ZÀ-ÖØ-Ý][A-Za-zÀ-ÖØ-öø-ÿ' \-]{2,})(?:,|\n|\s+notaire)/);if(nm)notaire=("Maître "+nm[1]).replace(/\s+/g," ").trim();
+  const origine=[date&&("Acte du "+date),notaire].filter(Boolean).join(" — ");
+  return {designation,origineActe:origine};
+}
+function extractCarrez(text){
+  const t=cleanDocText(text);
+  let carrez="";const m=t.match(/(?:surface|superficie)[^.\n]{0,120}?(\d+(?:[.,]\d+)?)\s*m[²2]/i)||t.match(/(\d+(?:[.,]\d+)?)\s*m[²2][^\n]{0,60}(?:loi carrez|carrez)/i);
+  if(m)carrez=m[1].replace(",",".")+" m²";
+  let carrezDate="";const dm=t.match(/(?:date (?:du )?(?:mesurage|diagnostic|rapport)|[ée]tabli le|r[ée]alis[ée] le)\s*:?\s*(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})/i);if(dm)carrezDate=normalizeDateFr(dm[1]);
+  const metreur=lineValue(t,/(?:Op[ée]rateur|Diagnostiqueur|Cabinet|Technicien)\s*:?\s*/i);
+  return {carrez,carrezDate,metreur};
+}
+function extractDiagnostic(text,type){
+  const t=cleanDocText(text),out={};
+  const dm=t.match(/(?:date (?:du )?(?:diagnostic|rapport)|[ée]tabli le|r[ée]alis[ée] le|effectu[ée] le)\s*:?\s*(\d{1,2}[\\/.\-]\d{1,2}[\\/.\-]\d{4})/i);
+  const date=dm?normalizeDateFr(dm[1]):"";
+  if(type==="erp"){out.erp=true;out.erpDate=date;out.erpTech=/risques? technologiques?/i.test(t);out.erpNat=/risques? naturels?/i.test(t);out.erpMinier=/risques? miniers?/i.test(t);out.erpSismique=/sismique|sismicit[ée]/i.test(t);out.erpSis=/secteur d'information sur les sols|\bSIS\b/i.test(t)}
+  if(type==="parasitaire"){out.parasitaire=true;out.parasitaireDate=date}
+  if(type==="plomb"){out.plomb=true;out.plombDate=date;if(/absence.*plomb|aucune unit[ée].*plomb/i.test(t))out.plombResultat="absence";else if(/sup[ée]rieur.*seuil|classe 3/i.test(t))out.plombResultat="sup";else if(/inf[ée]rieur.*seuil|classe [12]/i.test(t))out.plombResultat="inf"}
+  if(type==="amiante"){out.amiante=true;out.amianteDate=date;out.amiantePriv=/parties privatives/i.test(t);out.amianteComm=/parties communes|\bDTA\b/i.test(t)}
+  if(type==="gaz"){out.gaz=true;out.gazDate=date}
+  if(type==="electricite"){out.electricite=true;out.electriciteDate=date}
+  if(type==="dpe"){out.dpe=true;out.dpeDate=date}
+  if(type==="audit"){out.audit=true;out.auditDate=date}
+  return out;
+}
+async function extractPdfText(bytes){
+  if(!window.pdfjsLib)throw Error("Le lecteur PDF n’est pas chargé. Recharge la page.");
+  const pdf=await pdfjsLib.getDocument({data:bytes}).promise,parts=[];
+  for(let n=1;n<=Math.min(pdf.numPages,30);n++){
+    const page=await pdf.getPage(n),tc=await page.getTextContent();
+    const items=tc.items.filter(x=>x.str&&x.str.trim()).map(x=>({s:x.str.trim(),x:x.transform[4],y:x.transform[5]}));
+    items.sort((a,b)=>Math.abs(b.y-a.y)>2?b.y-a.y:a.x-b.x);
+    const lines=[];let cur=[],last=null;
+    for(const it of items){if(last===null||Math.abs(it.y-last)<=2){cur.push(it);last=last===null?it.y:(last+it.y)/2}else{lines.push(cur.sort((a,b)=>a.x-b.x).map(z=>z.s).join(" "));cur=[it];last=it.y}}
+    if(cur.length)lines.push(cur.sort((a,b)=>a.x-b.x).map(z=>z.s).join(" "));
+    parts.push(lines.join("\n"));
+  }
+  return parts.join("\n");
+}
+async function readImportedDocument(file){
+  if(/\.pdf$/i.test(file.name)||file.type==="application/pdf"){
+    const bytes=new Uint8Array(await file.arrayBuffer()),text=await extractPdfText(bytes);
+    if(text.replace(/\s/g,"").length>=100)return text;
+    throw Error("Ce PDF semble scanné. Envoie plutôt une image JPG/PNG du document pour la reconnaissance.");
+  }
+  if(!window.Tesseract)throw Error("Le module de lecture d’image n’est pas chargé. Recharge la page.");
+  $("status").textContent="Lecture du document…";
+  const res=await Tesseract.recognize(file,"fra",{logger:m=>{if(m.status==="recognizing text")$("status").textContent="Lecture du document… "+Math.round((m.progress||0)*100)+"%"}});
+  return res.data.text||"";
+}
+function applyImportResult(meta,result){
+  const parts=meta.split(":"),type=parts[0],kind=parts[1],index=parts[2];
+  if(type==="vendeur"||type==="acquereur"){
+    const arr=type==="vendeur"?"vendeurs":"acquereurs",i=Number(index)||0,p=data[arr][i]||blankPerson();
+    Object.assign(p,kind==="kbis"?{type:"morale"}:{type:"physique"},result);data[arr][i]=p;
+  }else Object.assign(data,result);
+  saveDossier();render();
+}
+async function handleDocumentImport(file,meta){
+  if(!file)return;
+  try{
+    $("status").textContent="Analyse de "+file.name+"…";
+    const text=await readImportedDocument(file),parts=meta.split(":"),type=parts[0],kind=parts[1];
+    let result;
+    if(type==="vendeur"||type==="acquereur")result=kind==="kbis"?extractCompanyFromKbis(text):extractPersonFromId(text);
+    else if(type==="titre")result=extractTitleProperty(text);
+    else if(type==="carrez")result=extractCarrez(text);
+    else result=extractDiagnostic(text,type);
+    const useful=Object.entries(result).filter(([k,v])=>v!==""&&v!==false&&v!=null);
+    if(!useful.length){alert("Aucune information suffisamment fiable n’a été détectée.");$("status").textContent="";return}
+    const preview=useful.map(([k,v])=>k+" : "+v).join("\n");
+    if(confirm("Informations détectées :\n\n"+preview+"\n\nLes appliquer au dossier ?"))applyImportResult(meta,result);
+    $("status").textContent="Document analysé";
+  }catch(e){$("status").textContent="";alert("Impossible de lire ce document : "+e.message)}
+  finally{$("documentImportInput").value=""}
+}
 const F=(l,k,t="text",full=false)=>`<div class="field ${full?"full":""}"><label>${l}</label><input type="${t}" data-key="${k}" value="${esc(data[k])}"></div>`;
 const T=(l,k)=>`<div class="field full"><label>${l}</label><textarea data-key="${k}">${esc(data[k])}</textarea></div>`;
 const C=(l,k)=>`<label class="check"><input type="checkbox" data-key="${k}" ${data[k]?"checked":""}>${l}</label>`;
