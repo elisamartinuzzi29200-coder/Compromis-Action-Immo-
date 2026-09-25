@@ -24,6 +24,45 @@ function removeBodyRange(doc,startText,endText){
   if(start<0||end<0||end<=start)return;
   for(let i=end-1;i>=start;i--)body.removeChild(nodes[i]);
 }
+function appendBordereau(doc,data){
+  const w="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  const body=doc.getElementsByTagNameNS(w,"body")[0]; if(!body)return;
+  const addP=(text,bold=false,size=22,center=false)=>{
+    const p=doc.createElementNS(w,"w:p");
+    const pPr=doc.createElementNS(w,"w:pPr");
+    if(center){const jc=doc.createElementNS(w,"w:jc");jc.setAttributeNS(w,"w:val","center");pPr.appendChild(jc)}
+    p.appendChild(pPr);
+    const r=doc.createElementNS(w,"w:r"),rPr=doc.createElementNS(w,"w:rPr");
+    if(bold)rPr.appendChild(doc.createElementNS(w,"w:b"));
+    const sz=doc.createElementNS(w,"w:sz");sz.setAttributeNS(w,"w:val",String(size));rPr.appendChild(sz);r.appendChild(rPr);
+    const t=doc.createElementNS(w,"w:t");t.textContent=text;r.appendChild(t);p.appendChild(r);body.insertBefore(p,body.lastElementChild);
+  };
+  const br=doc.createElementNS(w,"w:p"),r=doc.createElementNS(w,"w:r"),b=doc.createElementNS(w,"w:br");b.setAttributeNS(w,"w:type","page");r.appendChild(b);br.appendChild(r);body.insertBefore(br,body.lastElementChild);
+  addP("BORDEREAU DE REMISE DES DOCUMENTS",true,30,true);
+  addP("Documents remis à l’acquéreur / annexés au compromis",false,20,true);
+  const cats=[
+["IDENTITÉ / ÉTAT CIVIL",["Pièce d’identité du vendeur","Pièce d’identité de l’acquéreur","Livret de famille","Contrat de mariage","Convention de PACS","Jugement de divorce / séparation","Acte de décès","Acte de notoriété / succession","Procuration","Justificatif de domicile"]],
+["TITRE / PROPRIÉTÉ",["Titre de propriété","Attestation de propriété immobilière","Acte d’acquisition antérieur","Origine de propriété complémentaire","Plan cadastral","Relevé de propriété","Bornage / procès-verbal de bornage","Plan de division","État hypothécaire / renseignements hypothécaires","Servitudes / conventions privées"]],
+["COPROPRIÉTÉ",["Règlement de copropriété","État descriptif de division","Modificatifs au règlement de copropriété","Carnet d’entretien","Fiche synthétique de copropriété","Diagnostic technique global (DTG)","Projet de plan pluriannuel de travaux (PPPT)","Plan pluriannuel de travaux (PPT)","Procès-verbaux des 3 dernières assemblées générales","Appels de fonds","Dernier relevé de charges","Budget prévisionnel","État des impayés / fonds travaux","Pré-état daté","État daté","Coordonnées du syndic","Attestation loi Carrez"]],
+["DIAGNOSTICS",["DPE","Audit énergétique","État des risques et pollutions (ERP)","Diagnostic amiante parties privatives","Dossier amiante parties communes","Constat de risque d’exposition au plomb (CREP)","Diagnostic gaz","Diagnostic électricité","Diagnostic termites","État parasitaire","Diagnostic assainissement non collectif","Contrôle de raccordement assainissement collectif","Information mérule","Diagnostic bruit / nuisances sonores aériennes"]],
+["URBANISME / TRAVAUX",["Certificat d’urbanisme","Note de renseignements d’urbanisme","Déclaration préalable","Permis de construire","Permis d’aménager","Permis de démolir","Déclaration d’achèvement et de conformité","Attestation de non-contestation de conformité","Autorisation de copropriété pour travaux","Factures de travaux","Garanties décennales","Assurance dommages-ouvrage","Plans / notices techniques"]],
+["LOCATION / OCCUPATION",["Bail en cours","État des lieux d’entrée","Dernière quittance de loyer","Dépôt de garantie","Congé délivré au locataire","Congé reçu du locataire","Avenants au bail","Inventaire mobilier","État locatif","Attestation d’assurance locataire"]],
+["FISCALITÉ / CHARGES",["Dernier avis de taxe foncière","Taxe d’habitation le cas échéant","Factures eau","Factures électricité","Factures gaz","Factures chauffage","Justificatifs abonnements / contrats d’entretien","Factures ordures ménagères / TEOM"]],
+["ÉQUIPEMENTS / ENTRETIEN",["Contrat entretien chaudière","Dernière facture entretien chaudière","Certificat ramonage","Contrat entretien pompe à chaleur","Contrat entretien piscine","Contrat entretien assainissement","Notice équipements","Garanties électroménager / équipements inclus","Factures équipements récents"]],
+["ASSURANCES / SINISTRES",["Attestation assurance habitation","Déclaration de sinistre","Rapport d’expertise sinistre","Justificatif indemnisation assurance","Arrêté de catastrophe naturelle / technologique","Dossier dégât des eaux / incendie / fissures"]],
+["MAISON / TERRAIN / ASSAINISSEMENT",["Plan du terrain","Plan de maison","Étude de sol","Étude géotechnique","Contrôle assainissement","Contrat vidange / entretien fosse","Autorisation puits / forage","Informations cuve fioul / gaz","Attestation conformité installation"]],
+["VENTE / AGENCE / NOTAIRE",["Mandat de vente","Avenant au mandat","Bon de visite","Offre d’achat","Acceptation de l’offre","Compromis / promesse antérieure","Pouvoir / procuration de signature","Coordonnées du notaire vendeur","Coordonnées du notaire acquéreur","RIB pour séquestre / remboursement","Justificatif de séquestre"]],
+["FINANCEMENT ACQUÉREUR",["Simulation de financement","Accord de principe bancaire","Attestation de courtier","Offre de prêt","Refus de prêt","Justificatif d’apport personnel","Plan de financement","Justificatif prêt relais"]],
+["AUTRES ANNEXES",["Photographies annexées","Inventaire du mobilier","Liste des éléments inclus dans la vente","Liste des éléments exclus de la vente","Clés / badges / télécommandes - inventaire","Documents techniques divers","Correspondances utiles","Autre document"]]
+  ];
+  for(const [cat,docs] of cats){
+    addP(cat,true,22,false);
+    for(const d of docs)addP(((data.bordereau&&data.bordereau[d])?"☒ ":"☐ ")+d,false,20,false);
+  }
+  addP("Observations / documents complémentaires :",true,20,false);
+  addP("........................................................................................................................",false,20,false);
+  addP("........................................................................................................................",false,20,false);
+}
 async function buildCompromis(templateBytes,data){const files=await unzip(templateBytes),xf=files.find(f=>f.name==="word/document.xml");if(!xf)throw Error("Modèle Word incomplet");const doc=new DOMParser().parseFromString(td.decode(xf.data),"application/xml"),sn=data.vendeurs.map(p=>(p.nom+" "+p.prenoms).trim()).filter(Boolean).join(" / "),an=data.acquereurs.map(p=>(p.nom+" "+p.prenoms).trim()).filter(Boolean).join(" / ");
 setBox(doc,"Zone de texte 218",0,sn);setBox(doc,"Zone de texte 219",0,an);setBox(doc,"Zone de texte 6",0,data.vendeurs.map(p=>personText(p,false)).join("\n")+"\nD’une part,");setBox(doc,"Zone de texte 7",0,data.acquereurs.map(p=>personText(p,true)).join("\n")+"\nD’autre part.");setBox(doc,"Zone de texte 2",0,data.adresseBien);setBox(doc,"Zone de texte 8",0,data.designation,true);setBox(doc,"Zone de texte 2",1,data.origineVendeur);setBox(doc,"Zone de texte 2",2,data.origineActe);
 setCheck(doc,"Libre de toute location",data.occupation==="libre");setCheck(doc,"Loué selon l’état locatif",data.occupation==="loue");
@@ -41,4 +80,4 @@ if(data.financementMode==="avec"){
   removeBodyRange(doc,"FINANCEMENT DE L'ACQUISITION A L'AIDE","FINANCEMENT DE L'ACQUISITION SANS");
   removeBodyRange(doc,"CONDITION SUSPENSIVE RELATIVE AU FINANCEMENT","CONDITIONS SUSPENSIVES");
 }
-xf.data=te.encode(new XMLSerializer().serializeToString(doc));return new Blob([zip(files)],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
+appendBordereau(doc,data);xf.data=te.encode(new XMLSerializer().serializeToString(doc));return new Blob([zip(files)],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
