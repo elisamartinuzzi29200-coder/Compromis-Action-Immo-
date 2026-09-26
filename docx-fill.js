@@ -119,72 +119,129 @@ appendBordereau(doc,data);xf.data=te.encode(new XMLSerializer().serializeToStrin
 function sruXmlEscape(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function sruDateFr(v){const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+"/"+m[2]+"/"+m[1]:String(v||"")}
 function sruName(p){return p&&p.type==="morale"?(p.societe||""):[p&&p.prenoms,p&&p.nom].filter(Boolean).join(" ")}
+function sruModeLabelDoc(mode){return mode==="LRE"?"Lettre recommandée électronique (LRE)":"Lettre recommandée avec accusé de réception (LRAR)"}
 function sruP(text,opt={}){
-  const a=opt.align?'<w:jc w:val="'+opt.align+'"/>':'';
-  const sp='<w:spacing w:after="'+(opt.after==null?120:opt.after)+'" w:line="'+(opt.line||280)+'" w:lineRule="auto"/>';
+  const align=opt.align?'<w:jc w:val="'+opt.align+'"/>':'';
+  const spacing='<w:spacing w:before="'+(opt.before||0)+'" w:after="'+(opt.after==null?110:opt.after)+'" w:line="'+(opt.line||275)+'" w:lineRule="auto"/>';
   const shade=opt.shade?'<w:shd w:val="clear" w:color="auto" w:fill="'+opt.shade+'"/>':'';
-  const borders=opt.border?'<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="8" w:color="'+opt.border+'"/></w:pBdr>':'';
-  const rPr='<w:rPr><w:rFonts w:ascii="Aptos" w:hAnsi="Aptos"/>'+(opt.bold?'<w:b/>':'')+(opt.color?'<w:color w:val="'+opt.color+'"/>':'')+'<w:sz w:val="'+(opt.size||22)+'"/></w:rPr>';
-  return '<w:p><w:pPr>'+a+sp+shade+borders+'</w:pPr><w:r>'+rPr+'<w:t xml:space="preserve">'+sruXmlEscape(text)+'</w:t></w:r></w:p>';
+  const border=opt.border?'<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="6" w:color="'+opt.border+'"/></w:pBdr>':'';
+  const rPr='<w:rPr><w:rFonts w:ascii="Aptos" w:hAnsi="Aptos"/>'+(opt.bold?'<w:b/>':'')+(opt.color?'<w:color w:val="'+opt.color+'"/>':'')+'<w:sz w:val="'+(opt.size||20)+'"/></w:rPr>';
+  return '<w:p><w:pPr>'+align+spacing+shade+border+'</w:pPr><w:r>'+rPr+'<w:t xml:space="preserve">'+sruXmlEscape(text)+'</w:t></w:r></w:p>';
 }
-function sruCell(label,value,width,shade){
-  return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/><w:tcMar><w:top w:w="130" w:type="dxa"/><w:left w:w="150" w:type="dxa"/><w:bottom w:w="130" w:type="dxa"/><w:right w:w="150" w:type="dxa"/></w:tcMar><w:shd w:val="clear" w:color="auto" w:fill="'+(shade||"F7F9FA")+'"/></w:tcPr>'+sruP(label,{size:16,bold:true,color:"6B7785",after:45})+sruP(value||"—",{size:20,bold:true,after:40})+'</w:tc>';
+function sruTc(content,width,opt={}){
+  const fill=opt.fill||"FFFFFF",border=opt.border||"DDE3E7";
+  return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="135" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:bottom w:w="135" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tcMar><w:shd w:val="clear" w:color="auto" w:fill="'+fill+'"/><w:tcBorders><w:top w:val="single" w:sz="5" w:color="'+border+'"/><w:left w:val="single" w:sz="5" w:color="'+border+'"/><w:bottom w:val="single" w:sz="5" w:color="'+border+'"/><w:right w:val="single" w:sz="5" w:color="'+border+'"/></w:tcBorders></w:tcPr>'+content+'</w:tc>';
 }
-function sruTable(cells){
-  return '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="60" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tr>'+cells.join("")+'</w:tr></w:tbl>';
+function sruInfoCell(label,value,width,fill="F6F8F9"){
+  return sruTc(sruP(label,{size:14,bold:true,color:"73808C",after:28})+sruP(value||"—",{size:18,bold:true,color:"344252",after:10}),width,{fill});
 }
-async function buildSru(data,sru,buyer){
+function sruTableRow(cells){return '<w:tr>'+cells.join("")+'</w:tr>'}
+function sruTable(rows,width="0"){
+  return '<w:tbl><w:tblPr><w:tblW w:w="'+width+'" w:type="'+(width==="0"?"auto":"dxa")+'"/><w:tblCellMar><w:top w:w="35" w:type="dxa"/><w:left w:w="35" w:type="dxa"/><w:bottom w:w="35" w:type="dxa"/><w:right w:w="35" w:type="dxa"/></w:tblCellMar></w:tblPr>'+rows.join("")+'</w:tbl>';
+}
+function sruLogoDrawing(){
+  return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="80"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="2050000" cy="1452000"/><wp:docPr id="1" name="Logo Action Immobilière"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="logo-action-immo.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2050000" cy="1452000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+}
+async function sruLogoPng(){
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="842" height="596" viewBox="0 0 842 596"><rect width="842" height="596" fill="white"/><path d="M213 382 A220 220 0 1 1 629 382" fill="none" stroke="#0A9C9B" stroke-width="16"/><rect x="304" y="210" width="134" height="172" fill="#0A9C9B"/><rect x="493" y="255" width="46" height="127" fill="#0A9C9B"/><circle cx="304" cy="344" r="38" fill="#3F4A59"/><circle cx="516" cy="187" r="38" fill="#3F4A59"/><text x="421" y="475" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="700" letter-spacing="2" fill="#3F4A59">ACTION IMMOBILIÈRE</text><text x="421" y="516" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" letter-spacing="1" fill="#0A9C9B">VENTE • LOCATION • GESTION</text></svg>';
+  const blob=new Blob([svg],{type:"image/svg+xml;charset=utf-8"}),url=URL.createObjectURL(blob),img=new Image();
+  await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error("Logo impossible à générer"));img.src=url});
+  const canvas=document.createElement("canvas");canvas.width=842;canvas.height=596;const ctx=canvas.getContext("2d");ctx.drawImage(img,0,0);URL.revokeObjectURL(url);
+  const png=await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Logo impossible à convertir")),"image/png"));
+  return new Uint8Array(await png.arrayBuffer());
+}
+function sruSignatureTable(data,sru){
+  const rows=[];
+  (data.vendeurs||[]).forEach((p,i)=>rows.push(["Vendeur",sruName(p),(sru.signatureDates||{})["vendeur-"+i]||""]));
+  (data.acquereurs||[]).forEach((p,i)=>rows.push(["Acquéreur",sruName(p),(sru.signatureDates||{})["acquereur-"+i]||""]));
+  const head=sruTableRow([
+    sruTc(sruP("QUALITÉ",{size:14,bold:true,color:"0A9092",align:"center",after:5}),1700,{fill:"EAF6F6",border:"CFE7E7"}),
+    sruTc(sruP("SIGNATAIRE",{size:14,bold:true,color:"0A9092",align:"center",after:5}),4700,{fill:"EAF6F6",border:"CFE7E7"}),
+    sruTc(sruP("DATE",{size:14,bold:true,color:"0A9092",align:"center",after:5}),2500,{fill:"EAF6F6",border:"CFE7E7"})
+  ]);
+  const body=rows.map(([role,name,date])=>sruTableRow([
+    sruTc(sruP(role,{size:16,bold:true,color:"5D6874",after:5}),1700),
+    sruTc(sruP(name||"—",{size:17,color:"344252",after:5}),4700),
+    sruTc(sruP(sruDateFr(date)||"—",{size:17,bold:true,color:"344252",align:"center",after:5}),2500)
+  ]));
+  return sruTable([head,...body],"8900");
+}
+function sruStamp(){
+  const inside=
+    sruP("ACTION IMMOBILIÈRE",{size:20,bold:true,color:"344252",align:"center",after:18})+
+    sruP("Location - Gestion - Transaction",{size:16,bold:true,color:"0A9092",align:"center",after:22})+
+    sruP("6 rue La Bruyère - 29200 BREST • 02 98 46 41 41",{size:14,align:"center",after:10})+
+    sruP("SARL GLADLEL au capital de 5 000 € • RCS BREST 851 997 437",{size:13,align:"center",after:8})+
+    sruP("CPI n° 2901 2019 000 042 411 • Adhérent SNPI n° 21695",{size:13,align:"center",after:8})+
+    sruP("Garantie financière QBE Europe SA/NV",{size:13,align:"center",after:5});
+  return sruTable([sruTableRow([sruTc(inside,8900,{fill:"F2FAFA",border:"0A9C9B"})])],"8900");
+}
+async function buildSru(data,sru,buyer,buyerIndex=0){
+  const logoBytes=await sruLogoPng();
   const sellers=(data.vendeurs||[]).map(sruName).filter(Boolean).join(" / ");
-  const buyerName=sruName(buyer)||"";
+  const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
+  const buyerName=[civ,sruName(buyer)].filter(Boolean).join(" ");
   const buyerAddress=buyer&&buyer.adresse||"";
-  const bien=sru.designationCourte||data.adresseBien||"";
-  const dateComp=sruDateFr(sru.dateCompromis),dateNotif=sruDateFr(sru.dateNotification);
+  const propertyAddress=sru.adresseBien||data.adresseBien||"";
+  const bien=sru.designationCourte||data.designation||propertyAddress;
+  const dateNotif=sruDateFr(sru.dateNotification);
+  const mode=sruModeLabelDoc(sru.modeEnvoi);
   const retour=sru.adresseRetour||"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST";
-  const accent="445E75",light="EEF3F6";
+  const salutation=civ==="Mme"?"Madame,":civ==="M."?"Monsieur,":"Madame, Monsieur,";
+  const soussigne=civ==="Mme"?"Je soussignée":civ==="M."?"Je soussigné":"Je soussigné(e)";
+  const signedDates=Object.values(sru.signatureDates||{}).filter(Boolean).sort();
+  const firstDate=signedDates[0]||"";
+  const accent="0A9C9B",dark="344252",muted="6B7785",light="EFF8F8";
+
   const page1=
-    sruP("ACTION IMMOBILIÈRE",{size:18,bold:true,color:accent,after:20})+
-    sruP("Notification du délai de rétractation",{size:34,bold:true,color:"263746",after:35})+
-    sruP("Article L.271-1 du Code de la construction et de l’habitation",{size:18,color:"6B7785",after:240})+
-    sruTable([sruCell("DESTINATAIRE",buyerName,4500,light),sruCell("ADRESSE",buyerAddress,4500,light)])+
-    sruP("",{after:80})+
-    sruTable([sruCell("AVANT-CONTRAT","Compromis de vente signé le "+dateComp,4500),sruCell("MODE DE NOTIFICATION","Lettre recommandée avec accusé de réception",4500)])+
-    sruP("Madame, Monsieur,",{size:22,bold:true,after:140})+
-    sruP("Veuillez trouver sous ce pli un original du compromis de vente, accompagné le cas échéant de ses annexes, signé le "+dateComp+" par vous-même et par le(s) vendeur(s) ci-dessous.",{size:21,after:150,line:300})+
-    sruP("Vendeur(s)",{size:17,bold:true,color:"6B7785",after:35})+
-    sruP(sellers||"—",{size:21,bold:true,after:140})+
-    sruP("Bien concerné",{size:17,bold:true,color:"6B7785",after:35})+
-    sruP(bien||"—",{size:21,bold:true,shade:"F7F9FA",after:190,line:300})+
-    sruP("Délai de rétractation",{size:24,bold:true,color:accent,after:80})+
-    sruP("Nous vous informons que le délai de rétractation de 10 jours dont vous bénéficiez commencera à courir le lendemain de la première présentation de la présente.",{size:21,bold:true,after:130,line:300})+
-    sruP("Si vous décidez d’utiliser votre faculté de rétractation, vous devez l’exercer par lettre recommandée avec demande d’avis de réception. Vous pouvez à cette fin utiliser le coupon de rétractation figurant en page suivante, à adresser au mandataire expressément désigné à cet effet.",{size:21,after:190,line:300})+
-    sruP("Fait à "+(sru.lieu||"")+" le "+(dateNotif||"________________"),{size:20,after:80})+
-    sruP("Le mandataire / vendeur",{size:17,bold:true,color:"6B7785",after:35})+
-    sruP("ACTION IMMOBILIÈRE",{size:21,bold:true,after:20})+
-    sruP("6 rue La Bruyère - 29200 BREST",{size:18,color:"6B7785",after:0});
+    sruLogoDrawing()+
+    sruP("NOTIFICATION DU DÉLAI DE RÉTRACTATION",{size:29,bold:true,color:dark,align:"center",after:28})+
+    sruP("Article L.271-1 du Code de la construction et de l’habitation",{size:16,color:muted,align:"center",after:160})+
+    sruTable([sruTableRow([sruInfoCell("DESTINATAIRE",buyerName,4300,light),sruInfoCell("ADRESSE DU DESTINATAIRE",buyerAddress,4600,light)])],"8900")+
+    sruP("AVANT-CONTRAT",{size:18,bold:true,color:accent,before:120,after:50})+
+    sruTable([sruTableRow([sruInfoCell("ADRESSE DU BIEN",propertyAddress,5200),sruInfoCell("MODE DE NOTIFICATION",mode,3700)])],"8900")+
+    sruP("Dates de signature des parties",{size:15,bold:true,color:muted,before:80,after:40})+
+    sruSignatureTable(data,sru)+
+    sruP(salutation,{size:20,bold:true,before:110,after:70})+
+    sruP("Veuillez trouver sous ce pli un original du compromis de vente, accompagné le cas échéant de ses annexes, signé par les parties aux dates indiquées ci-dessus.",{size:18,after:80,line:285})+
+    sruP("Vendeur(s) : "+(sellers||"—"),{size:17,bold:true,color:dark,after:65})+
+    sruP("Bien concerné : "+(bien||"—"),{size:17,shade:"F7F9FA",after:95,line:280})+
+    sruP("DÉLAI DE RÉTRACTATION",{size:18,bold:true,color:accent,before:50,after:45})+
+    sruP("Nous vous informons que le délai de rétractation de 10 jours dont vous bénéficiez commencera à courir le lendemain de la première présentation de la présente.",{size:18,bold:true,color:dark,after:70,line:285})+
+    sruP("Si vous décidez d’utiliser votre faculté de rétractation, vous devez l’exercer par lettre recommandée avec demande d’avis de réception ; vous pouvez à cette fin utiliser le coupon de rétractation figurant en page suivante.",{size:17,after:90,line:280})+
+    sruP("Fait à "+(sru.lieu||"")+" le "+(dateNotif||"________________"),{size:17,after:35})+
+    sruP("Pour ACTION IMMOBILIÈRE",{size:15,bold:true,color:muted,after:5});
+
   const page2=
-    sruP("COUPON DE RÉTRACTATION",{size:30,bold:true,color:"263746",after:30})+
-    sruP("À renvoyer par lettre recommandée avec accusé de réception",{size:19,bold:true,color:accent,after:230})+
-    sruP("Nous, soussigné(e) :",{size:17,bold:true,color:"6B7785",after:30})+
-    sruP(buyerName||"—",{size:23,bold:true,shade:light,after:160})+
-    sruP("déclarons exercer notre faculté de rétractation concernant le compromis de vente signé le "+dateComp+", portant sur le bien suivant :",{size:21,after:120,line:300})+
-    sruP(bien||"—",{size:21,bold:true,shade:"F7F9FA",after:180,line:300})+
-    sruP("Cette notification nous a été adressée à :",{size:17,bold:true,color:"6B7785",after:30})+
-    sruP(buyerAddress||"—",{size:20,after:170})+
-    sruTable([sruCell("DATE","________________",4500),sruCell("SIGNATURE DE L’ACQUÉREUR","",4500)])+
-    sruP("",{after:150})+
-    sruP("ADRESSE DE RETOUR",{size:17,bold:true,color:"6B7785",after:35})+
-    sruP(retour,{size:21,bold:true,shade:light,after:160,line:300})+
-    sruP("Document préparé pour l’exemplaire acquéreur / bénéficiaire.",{size:16,color:"7B8792",after:0});
+    sruLogoDrawing()+
+    sruP("COUPON DE RÉTRACTATION",{size:27,bold:true,color:dark,align:"center",after:24})+
+    sruP("À renvoyer par lettre recommandée avec accusé de réception à l’adresse indiquée ci-dessous.",{size:16,bold:true,color:accent,align:"center",after:140})+
+    sruP(soussigne+" :",{size:16,bold:true,color:muted,after:25})+
+    sruP(buyerName||"—",{size:21,bold:true,color:dark,shade:light,after:100})+
+    sruP("déclare exercer ma faculté de rétractation concernant le compromis de vente portant sur le bien suivant :",{size:18,after:70,line:280})+
+    sruP((propertyAddress?propertyAddress+" - ":"")+(bien||"—"),{size:18,bold:true,color:dark,shade:"F7F9FA",after:100,line:280})+
+    sruTable([sruTableRow([sruInfoCell("NOTIFICATION ADRESSÉE À",buyerAddress,5400),sruInfoCell("1re DATE DE SIGNATURE",sruDateFr(firstDate)||"—",3500)])],"8900")+
+    sruP("Date de rétractation : ____________________",{size:17,before:95,after:45})+
+    sruP("Signature de l’acquéreur :",{size:16,bold:true,color:muted,after:110})+
+    sruP(" ",{size:20,after:140})+
+    sruP("ADRESSE DE RETOUR",{size:16,bold:true,color:accent,after:30})+
+    sruP(retour,{size:17,bold:true,shade:light,after:100,line:280})+
+    sruP("TAMPON DE L’AGENCE",{size:16,bold:true,color:accent,after:35})+
+    sruStamp();
+
   const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    +'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+    +'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'
     +page1+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+page2
-    +'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1050" w:right="1100" w:bottom="1050" w:left="1100" w:header="500" w:footer="500" w:gutter="0"/></w:sectPr></w:body></w:document>';
-  const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+    +'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="650" w:right="850" w:bottom="650" w:left="850" w:header="350" w:footer="350" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
   const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+  const docRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/></Relationships>';
   const files=[
     {name:"[Content_Types].xml",data:te.encode(types)},
     {name:"_rels/.rels",data:te.encode(rels)},
-    {name:"word/document.xml",data:te.encode(xml)}
+    {name:"word/document.xml",data:te.encode(xml)},
+    {name:"word/_rels/document.xml.rels",data:te.encode(docRels)},
+    {name:"word/media/logo.png",data:logoBytes}
   ];
   return new Blob([zip(files)],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
 }
