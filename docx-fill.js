@@ -253,7 +253,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   const logoResponse=await fetch("./assets/action-immo-logo-sru.b64?v=2",{cache:"no-store"});
   if(!logoResponse.ok)throw new Error("Impossible de charger le logo Action Immobilière.");
   const logoBase64=(await logoResponse.text()).trim();
-  const sruLogoData="data:image/png;base64,"+logoBase64;
+  const sruLogoData="data:image/jpeg;base64,"+logoBase64;
   const W=210,M=17,CW=W-M*2,dark=[57,69,83],teal=[7,154,152],muted=[105,117,128],line=[220,226,231],pale=[245,249,249];
   const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
   const buyerName=[civ,sruPdfName(buyer)].filter(Boolean).join(" "),buyerAddress=buyer&&buyer.adresse||"";
@@ -268,7 +268,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   const signedDates=signRows.map(r=>r[2]).filter(Boolean).sort(),firstDate=signedDates[0]||"";
 
   const setText=(size=10,color=dark,style="normal")=>{doc.setFont("helvetica",style);doc.setFontSize(size);doc.setTextColor(...color)};
-  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"PNG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
+  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"JPEG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
   const rule=y=>{doc.setDrawColor(...teal);doc.setLineWidth(.7);doc.line(M,y,W-M,y)};
   const title=(text,y)=>{setText(16,dark,"bold");doc.text(text,W/2,y,{align:"center"});return y+7};
   const subtitle=(text,y)=>{setText(8.6,muted,"normal");doc.text(text,W/2,y,{align:"center"});return y+6};
@@ -288,7 +288,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
     doc.text("Notification SRU",W-M,290,{align:"right"});
   };
 
-  let y=logo(); y=title("NOTIFICATION DU DELAI DE RETRACTATION",y+2); y=subtitle("Article L.271-1 du Code de la construction et de l'habitation",y); rule(y); y+=6;
+  let y=logo(); y=title("NOTIFICATION DU DELAI DE RETRACTATION",y+10); y=subtitle("Article L.271-1 du Code de la construction et de l'habitation",y); rule(y); y+=6;
   box("Destinataire",buyerName,M,y,86,20);box("Adresse du destinataire",buyerAddress,M+90,y,CW-90,20);y+=27;
   y=section("Avant-contrat",y);
   box("Adresse du bien",propertyAddress,M,y,104,20);box("Mode de notification",mode,M+108,y,CW-108,20);y+=27;
@@ -314,7 +314,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   setText(8.5,muted,"bold");doc.text("Pour ACTION IMMOBILIERE",M,y+2);pageFooter();
 
   doc.addPage();
-  y=logo(); y=title("COUPON DE RETRACTATION",y+1); y=subtitle("A renvoyer par lettre recommandee avec accuse de reception a l'adresse indiquee ci-dessous.",y);rule(y);y+=7;
+  y=logo(); y=title("COUPON DE RETRACTATION",y+10); y=subtitle("A renvoyer par lettre recommandee avec accuse de reception a l'adresse indiquee ci-dessous.",y);rule(y);y+=7;
   y=section("Acquereur",y);
   box("Identite",buyerName,M,y,86,20);box("Adresse de notification",buyerAddress,M+90,y,CW-90,20);y+=28;
   y=para(soussigne+" "+(buyerName||"-")+", declare exercer ma faculte de retractation concernant le compromis de vente portant sur le bien suivant :",y);
