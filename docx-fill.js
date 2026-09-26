@@ -140,7 +140,7 @@ function sruTable(rows,width="0"){
   return '<w:tbl><w:tblPr><w:tblW w:w="'+width+'" w:type="'+(width==="0"?"auto":"dxa")+'"/><w:tblCellMar><w:top w:w="35" w:type="dxa"/><w:left w:w="35" w:type="dxa"/><w:bottom w:w="35" w:type="dxa"/><w:right w:w="35" w:type="dxa"/></w:tblCellMar></w:tblPr>'+rows.join("")+'</w:tbl>';
 }
 function sruLogoDrawing(){
-  return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="80"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="2050000" cy="1452000"/><wp:docPr id="1" name="Logo Action Immobilière"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="logo-action-immo.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2050000" cy="1452000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+  return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="80"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="2050000" cy="1452000"/><wp:docPr id="1" name="Logo Action Immobilière"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="logo-action-immo.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:link="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2050000" cy="1452000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
 }
 async function sruLogoPng(){
   const svg='<svg xmlns="http://www.w3.org/2000/svg" width="842" height="596" viewBox="0 0 842 596"><rect width="842" height="596" fill="white"/><path d="M213 382 A220 220 0 1 1 629 382" fill="none" stroke="#0A9C9B" stroke-width="16"/><rect x="304" y="210" width="134" height="172" fill="#0A9C9B"/><rect x="493" y="255" width="46" height="127" fill="#0A9C9B"/><circle cx="304" cy="344" r="38" fill="#3F4A59"/><circle cx="516" cy="187" r="38" fill="#3F4A59"/><text x="421" y="475" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="700" letter-spacing="2" fill="#3F4A59">ACTION IMMOBILIÈRE</text><text x="421" y="516" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" letter-spacing="1" fill="#0A9C9B">VENTE • LOCATION • GESTION</text></svg>';
@@ -168,16 +168,15 @@ function sruSignatureTable(data,sru){
 }
 function sruStamp(){
   const inside=
-    sruP("ACTION IMMOBILIÈRE",{size:20,bold:true,color:"344252",align:"center",after:18})+
-    sruP("Location - Gestion - Transaction",{size:16,bold:true,color:"0A9092",align:"center",after:22})+
-    sruP("6 rue La Bruyère - 29200 BREST • 02 98 46 41 41",{size:14,align:"center",after:10})+
-    sruP("SARL GLADLEL au capital de 5 000 € • RCS BREST 851 997 437",{size:13,align:"center",after:8})+
-    sruP("CPI n° 2901 2019 000 042 411 • Adhérent SNPI n° 21695",{size:13,align:"center",after:8})+
-    sruP("Garantie financière QBE Europe SA/NV",{size:13,align:"center",after:5});
-  return sruTable([sruTableRow([sruTc(inside,8900,{fill:"F2FAFA",border:"0A9C9B"})])],"8900");
+    sruP("ACTION IMMOBILIÈRE",{size:18,bold:true,color:"344252",align:"center",after:10})+
+    sruP("VENTE • LOCATION • GESTION",{size:12,bold:true,color:"344252",align:"center",after:12})+
+    sruP("6 rue La Bruyère • 29200 BREST",{size:11,align:"center",after:5})+
+    sruP("02 98 46 41 41",{size:11,bold:true,align:"center",after:6})+
+    sruP("RCS BREST 851 997 437 • CPI 2901 2019 000 042 411",{size:10,align:"center",after:4})+
+    sruP("Adhérent SNPI n°21695 • Garantie financière QBE Europe SA/NV",{size:10,align:"center",after:3});
+  return '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders><w:top w:val="double" w:sz="12" w:color="344252"/><w:left w:val="double" w:sz="12" w:color="344252"/><w:bottom w:val="double" w:sz="12" w:color="344252"/><w:right w:val="double" w:sz="12" w:color="344252"/></w:tblBorders></w:tblPr><w:tr><w:tc><w:tcPr><w:tcW w:w="5000" w:type="dxa"/><w:vAlign w:val="center"/><w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar></w:tcPr>'+inside+'</w:tc></w:tr></w:tbl>';
 }
 async function buildSru(data,sru,buyer,buyerIndex=0){
-  const logoBytes=await sruLogoPng();
   const sellers=(data.vendeurs||[]).map(sruName).filter(Boolean).join(" / ");
   const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
   const buyerName=[civ,sruName(buyer)].filter(Boolean).join(" ");
@@ -233,15 +232,14 @@ async function buildSru(data,sru,buyer,buyerIndex=0){
     +'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'
     +page1+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+page2
     +'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="650" w:right="850" w:bottom="650" w:left="850" w:header="350" w:footer="350" w:gutter="0"/></w:sectPr></w:body></w:document>';
-  const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+  const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
   const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-  const docRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/></Relationships>';
+  const docRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://www.action-immo.com/office12/action_immo_brest/catalog/images/H1a.png" TargetMode="External"/></Relationships>';
   const files=[
     {name:"[Content_Types].xml",data:te.encode(types)},
     {name:"_rels/.rels",data:te.encode(rels)},
     {name:"word/document.xml",data:te.encode(xml)},
-    {name:"word/_rels/document.xml.rels",data:te.encode(docRels)},
-    {name:"word/media/logo.png",data:logoBytes}
+    {name:"word/_rels/document.xml.rels",data:te.encode(docRels)}
   ];
   return new Blob([zip(files)],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
 }
