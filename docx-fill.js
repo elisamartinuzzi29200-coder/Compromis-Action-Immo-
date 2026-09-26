@@ -250,9 +250,10 @@ function sruPdfDate(v){const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
 async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   if(!window.jspdf||!window.jspdf.jsPDF)throw new Error("Le moteur PDF n'est pas charge.");
   const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
-  const logoResponse=await fetch("./assets/action-immo-logo-sru.b64?v=2",{cache:"no-store"});
+  const logoResponse=await fetch("./assets/action-immo-logo-sru.b64?v=4",{cache:"no-store"});
   if(!logoResponse.ok)throw new Error("Impossible de charger le logo Action Immobilière.");
-  const logoBase64=(await logoResponse.text()).trim();
+  let logoBase64=(await logoResponse.text()).replace(/\s+/g,"");
+  while(logoBase64.length%4)logoBase64+="=";
   const sruLogoData="data:image/jpeg;base64,"+logoBase64;
   const W=210,M=17,CW=W-M*2,dark=[57,69,83],teal=[7,154,152],muted=[105,117,128],line=[220,226,231],pale=[245,249,249];
   const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
