@@ -250,11 +250,10 @@ function sruPdfDate(v){const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
 async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   if(!window.jspdf||!window.jspdf.jsPDF)throw new Error("Le moteur PDF n'est pas charge.");
   const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
-  const logoResponse=await fetch("./assets/action-immo-logo-sru.jpg",{cache:"no-store"});
+  const logoResponse=await fetch("./assets/action-immo-logo-sru.b64?v=2",{cache:"no-store"});
   if(!logoResponse.ok)throw new Error("Impossible de charger le logo Action Immobilière.");
-  const logoBytes=new Uint8Array(await logoResponse.arrayBuffer());
-  let logoBinary="";for(let i=0;i<logoBytes.length;i++)logoBinary+=String.fromCharCode(logoBytes[i]);
-  const sruLogoData="data:image/jpeg;base64,"+btoa(logoBinary);
+  const logoBase64=(await logoResponse.text()).trim();
+  const sruLogoData="data:image/png;base64,"+logoBase64;
   const W=210,M=17,CW=W-M*2,dark=[57,69,83],teal=[7,154,152],muted=[105,117,128],line=[220,226,231],pale=[245,249,249];
   const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
   const buyerName=[civ,sruPdfName(buyer)].filter(Boolean).join(" "),buyerAddress=buyer&&buyer.adresse||"";
@@ -269,7 +268,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   const signedDates=signRows.map(r=>r[2]).filter(Boolean).sort(),firstDate=signedDates[0]||"";
 
   const setText=(size=10,color=dark,style="normal")=>{doc.setFont("helvetica",style);doc.setFontSize(size);doc.setTextColor(...color)};
-  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"JPEG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
+  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"PNG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
   const rule=y=>{doc.setDrawColor(...teal);doc.setLineWidth(.7);doc.line(M,y,W-M,y)};
   const title=(text,y)=>{setText(16,dark,"bold");doc.text(text,W/2,y,{align:"center"});return y+7};
   const subtitle=(text,y)=>{setText(8.6,muted,"normal");doc.text(text,W/2,y,{align:"center"});return y+6};
