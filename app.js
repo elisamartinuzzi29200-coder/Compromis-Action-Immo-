@@ -620,13 +620,13 @@ function renderSru(){
         <div class="wide"><span>Vendeur(s)</span><strong>${esc(sruSellerNames()||"Non renseigné")}</strong></div>
       </div>
       <button type="button" class="primary bigAction" id="generateSruInline">Générer la notification SRU</button>
-      <p class="hint">Le Word généré comprend la notification, le coupon de rétractation et le tampon Action Immobilière prérempli.</p>
+      <p class="hint">Le PDF généré comprend la notification, le coupon de rétractation et le tampon Action Immobilière prérempli.</p>
     </div>`;
   }
   $("content").innerHTML=h;
   $("prev").style.display="";$("next").style.display="";
   $("prev").disabled=sruStep===0;$("next").disabled=sruStep===3;
-  $("generateBtn").textContent="Générer la notification SRU";
+  $("generateBtn").textContent="Générer la notification SRU en PDF";
   $("templateBtn").style.display="none";
   document.querySelectorAll("[data-sru-step]").forEach(x=>x.onclick=()=>{sruStep=Number(x.dataset.sruStep);renderSru()});
   document.querySelectorAll("[data-sru]").forEach(x=>x.oninput=x.onchange=()=>{data.sru[x.dataset.sru]=x.value;saveDossier()});
@@ -643,10 +643,9 @@ async function generateSruDocument(){
     if(buyer.type!=="morale"&&!sruCivilite(data.sru,index,buyer)){alert("Choisis M. ou Mme pour l’acquéreur destinataire.");sruStep=0;renderSru();return}
     const dates=Object.values(data.sru.signatureDates||{}).filter(Boolean);
     if(!dates.length){alert("Renseigne au moins une date de signature de l’avant-contrat.");sruStep=1;renderSru();return}
-    const blob=await buildSru(data,data.sru,buyer,index),a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
+    const pdf=await buildSruPdf(data,data.sru,buyer,index);
     const clean=(sruPartyName(buyer)||"acquereur").replace(/[^A-Za-zÀ-ÿ0-9]+/g,"_").replace(/^_+|_+$/g,"");
-    a.download="NOTIFICATION_SRU_"+clean+".docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    pdf.save("NOTIFICATION_SRU_"+clean+".pdf");
   }catch(e){alert("Impossible de générer la notification SRU : "+e.message)}
 }
 function render(){if(viewMode==="dashboard"){renderDashboard();return}if(viewMode==="sru"){renderSru();return}$("generateBtn").textContent="Générer le Word";$("templateBtn").style.display="";$("prev").style.display="";$("next").style.display="";$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
