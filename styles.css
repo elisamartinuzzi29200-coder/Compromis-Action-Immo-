@@ -44,3 +44,15 @@ footer{display:flex;justify-content:space-between;margin-top:22px;gap:10px}
 .importGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
 .importBtn{width:100%;text-align:left;padding:10px 12px}
 @media(max-width:700px){.importGrid{grid-template-columns:1fr}}
+
+/* Assistant SRU */
+.sruTop{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.sruEyebrow{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;color:#4e6478;margin-bottom:7px}
+.progressPill{white-space:nowrap;background:#eef2f5;border:1px solid #d7dfe6;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700;color:#526579}
+.sruProgress{height:6px;border-radius:999px;background:#e7ebef;overflow:hidden;margin:14px 0 22px}.sruProgress span{display:block;height:100%;background:#5d6d7e;border-radius:999px}
+.sectionCard{border:1px solid #d9e0e5;border-radius:12px;padding:20px;background:#fff;box-shadow:0 8px 24px rgba(40,55,70,.05)}
+.sectionCard h3{margin:0 0 7px;font-size:17px}
+.choiceCards{display:grid;gap:10px}.choiceCard{display:flex;gap:12px;align-items:flex-start;border:1px solid #d8dde2;border-radius:10px;padding:14px;cursor:pointer;background:#fafbfc}.choiceCard.selected{border-color:#6c7e90;background:#f0f4f7}.choiceCard input{margin-top:3px}.choiceCard span{display:flex;flex-direction:column;gap:4px}.choiceCard small{color:#777}
+.reviewGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.reviewGrid div{border:1px solid #e0e4e7;border-radius:8px;padding:12px;background:#fafafa}.reviewGrid div.wide{grid-column:1/-1}.reviewGrid span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#777;margin-bottom:5px}.reviewGrid strong{font-size:13px}
+.bigAction{width:100%;padding:13px 16px;margin-top:5px}
+@media(max-width:700px){.sruTop{flex-direction:column}.reviewGrid{grid-template-columns:1fr}.reviewGrid div.wide{grid-column:auto}}
