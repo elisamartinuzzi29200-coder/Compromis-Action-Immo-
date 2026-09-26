@@ -56,3 +56,13 @@ footer{display:flex;justify-content:space-between;margin-top:22px;gap:10px}
 .reviewGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.reviewGrid div{border:1px solid #e0e4e7;border-radius:8px;padding:12px;background:#fafafa}.reviewGrid div.wide{grid-column:1/-1}.reviewGrid span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#777;margin-bottom:5px}.reviewGrid strong{font-size:13px}
 .bigAction{width:100%;padding:13px 16px;margin-top:5px}
 @media(max-width:700px){.sruTop{flex-direction:column}.reviewGrid{grid-template-columns:1fr}.reviewGrid div.wide{grid-column:auto}}
+
+.civiliteChoice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:520px}
+.sruMiniSection{margin-top:22px}
+.signatureDates{display:grid;gap:10px}
+.signatureDateRow{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:14px;align-items:center;border:1px solid #dde3e8;border-radius:9px;padding:12px 14px;background:#fafbfc}
+.signatureDateRow div{display:flex;flex-direction:column;gap:3px}
+.signatureDateRow strong{font-size:13px}
+.signatureDateRow small{font-size:11px;color:#7a838c}
+.signatureDateRow input{width:100%;border:1px solid #bbb;border-radius:5px;padding:9px 10px;font:inherit;background:#fff}
+@media(max-width:700px){.civiliteChoice{grid-template-columns:1fr}.signatureDateRow{grid-template-columns:1fr}}
