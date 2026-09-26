@@ -1,7 +1,7 @@
 const sections=["Parties","Situation et désignation","Déclarations du vendeur","Copropriété","Diagnostics","Prix et jouissance","Conditions particulières","Financement","Conditions suspensives","Réalisation / notaires","Négociation / séquestre","Bordereau documents","Récapitulatif"];
-let step=0,templateBytes=null,viewMode="dashboard",currentId=null;
+let step=0,sruStep=0,templateBytes=null,viewMode="dashboard",currentId=null;
 const blankPerson=()=>({type:"physique",nom:"",prenoms:"",naissance:"",lieuNaissance:"",profession:"",situation:"Célibataire",unionDate:"",unionLieu:"",adresse:"",primo:false,societe:"",siret:"",siegeSocial:""});
-const initial=()=>({vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",typeBien:"ancien",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amianteResultat:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:"",bordereau:{}});
+const initial=()=>({sru:{acquereurIndex:0,dateCompromis:"",dateNotification:"",lieu:"Brest",designationCourte:"",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"},vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",typeBien:"ancien",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amianteResultat:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:"",bordereau:{}});
 let data=initial();
 function loadDossiers(){try{return JSON.parse(localStorage.getItem("ai-compromis-dossiers")||"[]")}catch{return []}}
 function storeDossiers(list){localStorage.setItem("ai-compromis-dossiers",JSON.stringify(list))}
@@ -516,7 +516,7 @@ function estimateActeFees(){
 }
 function penaltyText(){const total=parseMoney(data.prixBien)+parseMoney(data.prixMeubles);const p=total*0.10;data.clausePenale=p?Math.round(p).toLocaleString("fr-FR")+" € ("+numberToFrench(p)+" euros)":"";return data.clausePenale}
 function renderDashboard(){
-  viewMode="dashboard";currentId=null;$("nav").innerHTML="";
+  viewMode="dashboard";currentId=null;$("generateBtn").textContent="Générer le Word";$("templateBtn").style.display="";$("nav").innerHTML="";
   const list=loadDossiers().sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   $("content").innerHTML=`<div class="dashboardHead"><div><h2>MES DOSSIERS</h2><p class="hint">Les dossiers sont enregistrés uniquement dans ce navigateur.</p></div><button class="primary" id="dashNew">+ Nouveau dossier</button></div>
   ${list.length?`<div class="dossierList">${list.map(x=>`<article class="dossierCard"><div><strong>${esc(x.title)}</strong><small>Dernière modification : ${new Date(x.updatedAt).toLocaleString("fr-FR")}</small></div><div class="dossierActions"><button data-open="${x.id}">Ouvrir</button><button data-duplicate="${x.id}">Dupliquer</button><button class="dangerBtn" data-delete="${x.id}">Supprimer</button></div></article>`).join("")}</div>`:`<div class="emptyState"><strong>Aucun dossier enregistré</strong><p>Crée ton premier compromis. Tu pourras ensuite revenir ici pour le rouvrir, le dupliquer ou le supprimer.</p></div>`}`;
@@ -541,7 +541,76 @@ const bordereauDocs=[
 ["AUTRES ANNEXES",["Photographies annexées","Inventaire du mobilier","Liste des éléments inclus dans la vente","Liste des éléments exclus de la vente","Clés / badges / télécommandes - inventaire","Documents techniques divers","Correspondances utiles","Autre document"]]
 ];
 function bordereauHtml(){return bordereauDocs.map(([cat,docs])=>`<div class="section">${cat}</div><div class="grid">${docs.map(d=>`<label class="check"><input type="checkbox" data-doc="${esc(d)}" ${data.bordereau&&data.bordereau[d]?"checked":""}>${d}</label>`).join("")}</div>`).join("")}
-function render(){if(viewMode==="dashboard"){renderDashboard();return}$("prev").style.display="";$("next").style.display="";$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
+function ensureSru(){
+  if(!data.sru)data.sru={acquereurIndex:0,dateCompromis:"",dateNotification:"",lieu:"Brest",designationCourte:"",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"};
+  if(!data.sru.designationCourte)data.sru.designationCourte=data.adresseBien||"";
+  if(!data.sru.adresseRetour)data.sru.adresseRetour="ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST";
+  return data.sru;
+}
+function sruPartyName(p){return p.type==="morale"?(p.societe||""):[p.prenoms,p.nom].filter(Boolean).join(" ")}
+function sruSellerNames(){return (data.vendeurs||[]).map(sruPartyName).filter(Boolean).join(" / ")}
+function fmtDateFr(v){if(!v)return "";const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+"/"+m[2]+"/"+m[1]:v}
+function renderSru(){
+  ensureSru();viewMode="sru";
+  const s=data.sru,buyers=data.acquereurs||[],buyer=buyers[Math.min(Number(s.acquereurIndex)||0,Math.max(0,buyers.length-1))]||blankPerson();
+  const steps=["Destinataire","Avant-contrat","Notification","Vérification"];
+  $("nav").innerHTML=steps.map((x,i)=>`<button data-sru-step="${i}" class="${i===sruStep?"active":""}">${i+1}. ${x}</button>`).join("");
+  let h=`<div class="sruTop"><div><span class="sruEyebrow">ASSISTANT SRU</span><h2>Notification du délai de rétractation</h2><p class="hint">Les données déjà saisies dans le compromis sont reprises automatiquement. Vérifie seulement les éléments propres à la notification.</p></div><div class="progressPill">Étape ${sruStep+1} / 4</div></div><div class="sruProgress"><span style="width:${(sruStep+1)*25}%"></span></div>`;
+  if(sruStep===0){
+    h+=`<div class="sectionCard"><h3>À qui adresse-t-on cette notification ?</h3><p class="hint">Une notification est préparée pour un acquéreur à la fois.</p><div class="choiceCards">${buyers.map((p,i)=>`<label class="choiceCard ${Number(s.acquereurIndex)===i?"selected":""}"><input type="radio" name="sruBuyer" value="${i}" ${Number(s.acquereurIndex)===i?"checked":""}><span><strong>${esc(sruPartyName(p)||("Acquéreur "+(i+1)))}</strong><small>${esc(p.adresse||"Adresse non renseignée")}</small></span></label>`).join("")||'<div class="notice">Aucun acquéreur n’est encore renseigné dans le compromis.</div>'}</div></div>`;
+  }
+  if(sruStep===1){
+    h+=`<div class="sectionCard"><h3>Avant-contrat concerné</h3><div class="grid">
+      <div class="field"><label>Date de signature du compromis</label><input type="date" data-sru="dateCompromis" value="${esc(s.dateCompromis)}"></div>
+      <div class="field"><label>Lieu de signature</label><input data-sru="lieu" value="${esc(s.lieu)}"></div>
+      <div class="field full"><label>Vendeur(s)</label><input value="${esc(sruSellerNames())}" readonly></div>
+      <div class="field full"><label>Bien concerné / désignation concise</label><textarea data-sru="designationCourte">${esc(s.designationCourte||data.adresseBien)}</textarea><small>Prérempli depuis l’adresse du bien. Tu peux compléter si nécessaire.</small></div>
+    </div></div>`;
+  }
+  if(sruStep===2){
+    h+=`<div class="sectionCard"><h3>Préparer l’envoi</h3><div class="grid">
+      <div class="field"><label>Date de la notification / de l’envoi</label><input type="date" data-sru="dateNotification" value="${esc(s.dateNotification)}"></div>
+      <div class="field"><label>Mode prévu</label><input value="Lettre recommandée avec accusé de réception" readonly></div>
+      <div class="field full"><label>Adresse de retour du coupon de rétractation</label><input data-sru="adresseRetour" value="${esc(s.adresseRetour)}"></div>
+    </div><div class="notice">Le document reprend la logique du modèle fourni : notification par recommandé avec accusé de réception et coupon de rétractation.</div></div>`;
+  }
+  if(sruStep===3){
+    h+=`<div class="sectionCard"><h3>Vérification avant génération</h3>
+      <div class="reviewGrid">
+        <div><span>Acquéreur</span><strong>${esc(sruPartyName(buyer)||"Non renseigné")}</strong></div>
+        <div><span>Adresse</span><strong>${esc(buyer.adresse||"Non renseignée")}</strong></div>
+        <div><span>Date du compromis</span><strong>${esc(fmtDateFr(s.dateCompromis)||"Non renseignée")}</strong></div>
+        <div><span>Date d’envoi</span><strong>${esc(fmtDateFr(s.dateNotification)||"Non renseignée")}</strong></div>
+        <div class="wide"><span>Bien</span><strong>${esc(s.designationCourte||data.adresseBien||"Non renseigné")}</strong></div>
+        <div class="wide"><span>Vendeur(s)</span><strong>${esc(sruSellerNames()||"Non renseigné")}</strong></div>
+      </div>
+      <button type="button" class="primary bigAction" id="generateSruInline">Générer la notification SRU</button>
+      <p class="hint">Le Word généré comprend la notification et le coupon de rétractation sur une présentation modernisée.</p>
+    </div>`;
+  }
+  $("content").innerHTML=h;
+  $("prev").style.display="";$("next").style.display="";
+  $("prev").disabled=sruStep===0;$("next").disabled=sruStep===3;
+  $("generateBtn").textContent="Générer la notification SRU";
+  $("templateBtn").style.display="none";
+  document.querySelectorAll("[data-sru-step]").forEach(x=>x.onclick=()=>{sruStep=Number(x.dataset.sruStep);renderSru()});
+  document.querySelectorAll("[data-sru]").forEach(x=>x.oninput=x.onchange=()=>{data.sru[x.dataset.sru]=x.value;saveDossier()});
+  document.querySelectorAll("input[name=sruBuyer]").forEach(x=>x.onchange=()=>{data.sru.acquereurIndex=Number(x.value);saveDossier();renderSru()});
+  const g=$("generateSruInline");if(g)g.onclick=generateSruDocument;
+}
+async function generateSruDocument(){
+  try{
+    ensureSru();
+    const buyer=(data.acquereurs||[])[Number(data.sru.acquereurIndex)||0];
+    if(!buyer){alert("Renseigne d’abord un acquéreur.");return}
+    if(!data.sru.dateCompromis){alert("Renseigne la date de signature du compromis.");return}
+    const blob=await buildSru(data,data.sru,buyer),a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    const clean=(sruPartyName(buyer)||"acquereur").replace(/[^A-Za-zÀ-ÿ0-9]+/g,"_").replace(/^_+|_+$/g,"");
+    a.download="NOTIFICATION_SRU_"+clean+".docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){alert("Impossible de générer la notification SRU : "+e.message)}
+}
+function render(){if(viewMode==="dashboard"){renderDashboard();return}if(viewMode==="sru"){renderSru();return}$("generateBtn").textContent="Générer le Word";$("templateBtn").style.display="";$("prev").style.display="";$("next").style.display="";$("nav").innerHTML=sections.map((s,i)=>`<button data-step="${i}" class="${i===step?"active":""}">${i+1}. ${s}</button>`).join("");let h=`<h2>${sections[step]}</h2><p class="hint">Uniquement les zones à renseigner du modèle Word fourni. Le texte juridique du document n’est pas réécrit.</p>`;
 if(step===0)h+=`<div class="section">VENDEUR(S)</div>${personHtml("vendeurs")}<div class="section">ACQUÉREUR(S)</div>${personHtml("acquereurs")}`;
 if(step===1)h+=`<div class="box"><strong>Type de bien</strong><label class="check"><input type="radio" name="typeBien" value="ancien" ${data.typeBien==="ancien"?"checked":""}>Ancien</label><label class="check"><input type="radio" name="typeBien" value="neuf" ${data.typeBien==="neuf"?"checked":""}>Neuf</label></div><div class="grid">${F("Adresse du bien","adresseBien")}${T("Désignation complète du bien","designation")}${F("Le vendeur a acquis l’immeuble de","origineVendeur")}${F("Acte, Date, Notaire","origineActe")}</div>`;
 if(step===2)h+=`<div class="box"><strong>État d’occupation</strong><label class="check"><input type="radio" name="occupation" value="libre" ${data.occupation==="libre"?"checked":""}>Libre de toute location, occupation, réquisition ou encombrement</label><label class="check"><input type="radio" name="occupation" value="loue" ${data.occupation==="loue"?"checked":""}>Loué selon l’état locatif annexé</label></div>`;
@@ -564,8 +633,9 @@ $("templateInput").onchange=async()=>{const f=$("templateInput").files[0];if(!f)
 $("documentImportInput").onchange=async()=>{const files=$("documentImportInput").files;if(!files||!files.length||!pendingImport)return;const meta=pendingImport;pendingImport=null;await handleDocumentImport(files,meta)};
 $("templateBtn").onclick=()=>$("templateInput").click();
 $("saveBtn").onclick=()=>{if(viewMode==="dashboard")return;saveDossier()};
+$("sruBtn").onclick=()=>{if(viewMode==="dashboard"||!currentId){alert("Ouvre d’abord un dossier compromis.");return}saveDossier();sruStep=0;viewMode="sru";renderSru()};
 $("dashboardBtn").onclick=()=>{viewMode="dashboard";renderDashboard()};$("newBtn").onclick=newDossier;
-$("generateBtn").onclick=async()=>{try{if(viewMode==="dashboard"){alert("Ouvre d’abord un dossier.");return}if(!templateBytes){alert("Charge d’abord le fichier COMPROMIS DE VENTE(2).docx. Il sera mémorisé dans ce navigateur ensuite.");return}estimateActeFees();penaltyText();const blob=await buildCompromis(templateBytes,data),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="COMPROMIS_DE_VENTE_REMPLI.docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert("Impossible de générer le document : "+e.message)}};
-$("prev").onclick=()=>{if(step>0){step--;render()}};
-$("next").onclick=()=>{if(step<sections.length-1){step++;render()}};
+$("generateBtn").onclick=async()=>{try{if(viewMode==="sru"){await generateSruDocument();return}if(viewMode==="dashboard"){alert("Ouvre d’abord un dossier.");return}if(!templateBytes){alert("Charge d’abord le fichier COMPROMIS DE VENTE(2).docx. Il sera mémorisé dans ce navigateur ensuite.");return}estimateActeFees();penaltyText();const blob=await buildCompromis(templateBytes,data),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="COMPROMIS_DE_VENTE_REMPLI.docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert("Impossible de générer le document : "+e.message)}};
+$("prev").onclick=()=>{if(viewMode==="sru"){if(sruStep>0){sruStep--;renderSru()}return}if(step>0){step--;render()}};
+$("next").onclick=()=>{if(viewMode==="sru"){if(sruStep<3){sruStep++;renderSru()}return}if(step<sections.length-1){step++;render()}};
 (async()=>{const t=await loadTemplate();if(t){templateBytes=t.bytes instanceof Uint8Array?t.bytes:new Uint8Array(t.bytes);$("status").textContent="Modèle Word mémorisé : "+t.name}else $("status").textContent="Charge le modèle Word une seule fois";renderDashboard()})();
