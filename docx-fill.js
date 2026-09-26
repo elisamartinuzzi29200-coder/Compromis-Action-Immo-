@@ -269,7 +269,7 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   const signedDates=signRows.map(r=>r[2]).filter(Boolean).sort(),firstDate=signedDates[0]||"";
 
   const setText=(size=10,color=dark,style="normal")=>{doc.setFont("helvetica",style);doc.setFontSize(size);doc.setTextColor(...color)};
-  const logo=()=>{const w=46,h=w*(255/360);doc.addImage(sruLogoData,"JPEG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
+  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"JPEG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
   const rule=y=>{doc.setDrawColor(...teal);doc.setLineWidth(.7);doc.line(M,y,W-M,y)};
   const title=(text,y)=>{setText(16,dark,"bold");doc.text(text,W/2,y,{align:"center"});return y+7};
   const subtitle=(text,y)=>{setText(8.6,muted,"normal");doc.text(text,W/2,y,{align:"center"});return y+6};
