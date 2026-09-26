@@ -1,7 +1,7 @@
 const sections=["Parties","Situation et désignation","Déclarations du vendeur","Copropriété","Diagnostics","Prix et jouissance","Conditions particulières","Financement","Conditions suspensives","Réalisation / notaires","Négociation / séquestre","Bordereau documents","Récapitulatif"];
 let step=0,sruStep=0,templateBytes=null,viewMode="dashboard",currentId=null;
 const blankPerson=()=>({type:"physique",nom:"",prenoms:"",naissance:"",lieuNaissance:"",profession:"",situation:"Célibataire",unionDate:"",unionLieu:"",adresse:"",primo:false,societe:"",siret:"",siegeSocial:""});
-const initial=()=>({sru:{acquereurIndex:0,dateCompromis:"",dateNotification:"",lieu:"Brest",designationCourte:"",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"},vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",typeBien:"ancien",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amianteResultat:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:"",bordereau:{}});
+const initial=()=>({sru:{acquereurIndex:0,civilites:{},signatureDates:{},dateNotification:"",lieu:"Brest",adresseBien:"",designationCourte:"",modeEnvoi:"LRAR",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"},vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",typeBien:"ancien",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amianteResultat:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:"",bordereau:{}});
 let data=initial();
 function loadDossiers(){try{return JSON.parse(localStorage.getItem("ai-compromis-dossiers")||"[]")}catch{return []}}
 function storeDossiers(list){localStorage.setItem("ai-compromis-dossiers",JSON.stringify(list))}
@@ -542,50 +542,85 @@ const bordereauDocs=[
 ];
 function bordereauHtml(){return bordereauDocs.map(([cat,docs])=>`<div class="section">${cat}</div><div class="grid">${docs.map(d=>`<label class="check"><input type="checkbox" data-doc="${esc(d)}" ${data.bordereau&&data.bordereau[d]?"checked":""}>${d}</label>`).join("")}</div>`).join("")}
 function ensureSru(){
-  if(!data.sru)data.sru={acquereurIndex:0,dateCompromis:"",dateNotification:"",lieu:"Brest",designationCourte:"",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"};
-  if(!data.sru.designationCourte)data.sru.designationCourte=data.adresseBien||"";
+  const defaults={acquereurIndex:0,civilites:{},signatureDates:{},dateNotification:"",lieu:"Brest",adresseBien:"",designationCourte:"",modeEnvoi:"LRAR",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"};
+  data.sru={...defaults,...(data.sru||{})};
+  if(!data.sru.civilites||typeof data.sru.civilites!=="object")data.sru.civilites={};
+  if(!data.sru.signatureDates||typeof data.sru.signatureDates!=="object")data.sru.signatureDates={};
+  if(!data.sru.adresseBien)data.sru.adresseBien=data.adresseBien||"";
+  if(!data.sru.designationCourte)data.sru.designationCourte=data.designation||data.adresseBien||"";
   if(!data.sru.adresseRetour)data.sru.adresseRetour="ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST";
+  if(!data.sru.modeEnvoi)data.sru.modeEnvoi="LRAR";
+  if(data.sru.dateCompromis&&!Object.keys(data.sru.signatureDates).length){
+    (data.vendeurs||[]).forEach((_,i)=>data.sru.signatureDates["vendeur-"+i]=data.sru.dateCompromis);
+    (data.acquereurs||[]).forEach((_,i)=>data.sru.signatureDates["acquereur-"+i]=data.sru.dateCompromis);
+  }
   return data.sru;
 }
 function sruPartyName(p){return p.type==="morale"?(p.societe||""):[p.prenoms,p.nom].filter(Boolean).join(" ")}
 function sruSellerNames(){return (data.vendeurs||[]).map(sruPartyName).filter(Boolean).join(" / ")}
 function fmtDateFr(v){if(!v)return "";const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+"/"+m[2]+"/"+m[1]:v}
+function sruCivilite(s,index,buyer){
+  if(buyer&&buyer.type==="morale")return "";
+  return (s.civilites&&s.civilites[String(index)])||"";
+}
+function sruDisplayBuyer(s,index,buyer){
+  const civ=sruCivilite(s,index,buyer);
+  return [civ,sruPartyName(buyer)].filter(Boolean).join(" ");
+}
+function sruModeLabel(mode){return mode==="LRE"?"Lettre recommandée électronique (LRE)":"Lettre recommandée avec accusé de réception (LRAR)"}
+function sruSignatoryRows(s){
+  const rows=[];
+  (data.vendeurs||[]).forEach((p,i)=>rows.push({key:"vendeur-"+i,label:"Vendeur "+(i+1),name:sruPartyName(p),date:(s.signatureDates||{})["vendeur-"+i]||""}));
+  (data.acquereurs||[]).forEach((p,i)=>rows.push({key:"acquereur-"+i,label:"Acquéreur "+(i+1),name:sruPartyName(p),date:(s.signatureDates||{})["acquereur-"+i]||""}));
+  return rows;
+}
 function renderSru(){
   ensureSru();viewMode="sru";
-  const s=data.sru,buyers=data.acquereurs||[],buyer=buyers[Math.min(Number(s.acquereurIndex)||0,Math.max(0,buyers.length-1))]||blankPerson();
+  const s=data.sru,buyers=data.acquereurs||[],buyerIndex=Math.min(Number(s.acquereurIndex)||0,Math.max(0,buyers.length-1)),buyer=buyers[buyerIndex]||blankPerson();
   const steps=["Destinataire","Avant-contrat","Notification","Vérification"];
   $("nav").innerHTML=steps.map((x,i)=>`<button data-sru-step="${i}" class="${i===sruStep?"active":""}">${i+1}. ${x}</button>`).join("");
   let h=`<div class="sruTop"><div><span class="sruEyebrow">ASSISTANT SRU</span><h2>Notification du délai de rétractation</h2><p class="hint">Les données déjà saisies dans le compromis sont reprises automatiquement. Vérifie seulement les éléments propres à la notification.</p></div><div class="progressPill">Étape ${sruStep+1} / 4</div></div><div class="sruProgress"><span style="width:${(sruStep+1)*25}%"></span></div>`;
   if(sruStep===0){
-    h+=`<div class="sectionCard"><h3>À qui adresse-t-on cette notification ?</h3><p class="hint">Une notification est préparée pour un acquéreur à la fois.</p><div class="choiceCards">${buyers.map((p,i)=>`<label class="choiceCard ${Number(s.acquereurIndex)===i?"selected":""}"><input type="radio" name="sruBuyer" value="${i}" ${Number(s.acquereurIndex)===i?"checked":""}><span><strong>${esc(sruPartyName(p)||("Acquéreur "+(i+1)))}</strong><small>${esc(p.adresse||"Adresse non renseignée")}</small></span></label>`).join("")||'<div class="notice">Aucun acquéreur n’est encore renseigné dans le compromis.</div>'}</div></div>`;
+    h+=`<div class="sectionCard"><h3>À qui adresse-t-on cette notification ?</h3><p class="hint">Une notification est préparée pour un acquéreur à la fois.</p><div class="choiceCards">${buyers.map((p,i)=>`<label class="choiceCard ${buyerIndex===i?"selected":""}"><input type="radio" name="sruBuyer" value="${i}" ${buyerIndex===i?"checked":""}><span><strong>${esc(sruPartyName(p)||("Acquéreur "+(i+1)))}</strong><small>${esc(p.adresse||"Adresse non renseignée")}</small></span></label>`).join("")||'<div class="notice">Aucun acquéreur n’est encore renseigné dans le compromis.</div>'}</div>
+    ${buyer&&buyer.type!=="morale"?`<div class="section sruMiniSection">Civilité à afficher sur la notification</div><div class="civiliteChoice">
+      <label class="choiceCard ${sruCivilite(s,buyerIndex,buyer)==="M."?"selected":""}"><input type="radio" name="sruCivilite" value="M." ${sruCivilite(s,buyerIndex,buyer)==="M."?"checked":""}><span><strong>M.</strong><small>Monsieur</small></span></label>
+      <label class="choiceCard ${sruCivilite(s,buyerIndex,buyer)==="Mme"?"selected":""}"><input type="radio" name="sruCivilite" value="Mme" ${sruCivilite(s,buyerIndex,buyer)==="Mme"?"checked":""}><span><strong>Mme</strong><small>Madame</small></span></label>
+    </div>`:""}</div>`;
   }
   if(sruStep===1){
+    const sigRows=sruSignatoryRows(s);
     h+=`<div class="sectionCard"><h3>Avant-contrat concerné</h3><div class="grid">
-      <div class="field"><label>Date de signature du compromis</label><input type="date" data-sru="dateCompromis" value="${esc(s.dateCompromis)}"></div>
       <div class="field"><label>Lieu de signature</label><input data-sru="lieu" value="${esc(s.lieu)}"></div>
+      <div class="field"><label>Adresse du bien</label><input data-sru="adresseBien" value="${esc(s.adresseBien||data.adresseBien)}"><small>Reprise automatiquement depuis le compromis.</small></div>
       <div class="field full"><label>Vendeur(s)</label><input value="${esc(sruSellerNames())}" readonly></div>
-      <div class="field full"><label>Bien concerné / désignation concise</label><textarea data-sru="designationCourte">${esc(s.designationCourte||data.adresseBien)}</textarea><small>Prérempli depuis l’adresse du bien. Tu peux compléter si nécessaire.</small></div>
-    </div></div>`;
+      <div class="field full"><label>Bien concerné / désignation</label><textarea data-sru="designationCourte">${esc(s.designationCourte||data.designation||data.adresseBien)}</textarea></div>
+    </div>
+    <div class="section sruMiniSection">Dates de signature des parties</div>
+    <p class="hint">Renseigne la date propre à chaque signataire si les signatures n’ont pas eu lieu le même jour.</p>
+    <div class="signatureDates">${sigRows.map(r=>`<div class="signatureDateRow"><div><strong>${esc(r.name||r.label)}</strong><small>${r.label}</small></div><input type="date" data-sru-sign="${r.key}" value="${esc(r.date)}"></div>`).join("")}</div>
+    </div>`;
   }
   if(sruStep===2){
     h+=`<div class="sectionCard"><h3>Préparer l’envoi</h3><div class="grid">
       <div class="field"><label>Date de la notification / de l’envoi</label><input type="date" data-sru="dateNotification" value="${esc(s.dateNotification)}"></div>
-      <div class="field"><label>Mode prévu</label><input value="Lettre recommandée avec accusé de réception" readonly></div>
+      <div class="field"><label>Mode d’envoi prévu</label><select data-sru="modeEnvoi"><option value="LRAR" ${s.modeEnvoi==="LRAR"?"selected":""}>LRAR - Lettre recommandée avec AR</option><option value="LRE" ${s.modeEnvoi==="LRE"?"selected":""}>LRE - Lettre recommandée électronique</option></select></div>
       <div class="field full"><label>Adresse de retour du coupon de rétractation</label><input data-sru="adresseRetour" value="${esc(s.adresseRetour)}"></div>
-    </div><div class="notice">Le document reprend la logique du modèle fourni : notification par recommandé avec accusé de réception et coupon de rétractation.</div></div>`;
+    </div><div class="notice">Le mode choisi sera repris tel quel dans la notification et dans le coupon de rétractation.</div></div>`;
   }
   if(sruStep===3){
+    const sig=sruSignatoryRows(s).filter(r=>r.date).map(r=>esc(r.name||r.label)+" : "+esc(fmtDateFr(r.date))).join("<br>");
     h+=`<div class="sectionCard"><h3>Vérification avant génération</h3>
       <div class="reviewGrid">
-        <div><span>Acquéreur</span><strong>${esc(sruPartyName(buyer)||"Non renseigné")}</strong></div>
-        <div><span>Adresse</span><strong>${esc(buyer.adresse||"Non renseignée")}</strong></div>
-        <div><span>Date du compromis</span><strong>${esc(fmtDateFr(s.dateCompromis)||"Non renseignée")}</strong></div>
+        <div><span>Acquéreur</span><strong>${esc(sruDisplayBuyer(s,buyerIndex,buyer)||"Non renseigné")}</strong></div>
+        <div><span>Adresse acquéreur</span><strong>${esc(buyer.adresse||"Non renseignée")}</strong></div>
+        <div><span>Mode d’envoi</span><strong>${esc(sruModeLabel(s.modeEnvoi))}</strong></div>
         <div><span>Date d’envoi</span><strong>${esc(fmtDateFr(s.dateNotification)||"Non renseignée")}</strong></div>
-        <div class="wide"><span>Bien</span><strong>${esc(s.designationCourte||data.adresseBien||"Non renseigné")}</strong></div>
+        <div class="wide"><span>Adresse du bien</span><strong>${esc(s.adresseBien||data.adresseBien||"Non renseignée")}</strong></div>
+        <div class="wide"><span>Dates de signature</span><strong>${sig||"Non renseignées"}</strong></div>
         <div class="wide"><span>Vendeur(s)</span><strong>${esc(sruSellerNames()||"Non renseigné")}</strong></div>
       </div>
       <button type="button" class="primary bigAction" id="generateSruInline">Générer la notification SRU</button>
-      <p class="hint">Le Word généré comprend la notification et le coupon de rétractation sur une présentation modernisée.</p>
+      <p class="hint">Le Word généré comprend la notification, le coupon de rétractation et le tampon Action Immobilière prérempli.</p>
     </div>`;
   }
   $("content").innerHTML=h;
@@ -595,16 +630,20 @@ function renderSru(){
   $("templateBtn").style.display="none";
   document.querySelectorAll("[data-sru-step]").forEach(x=>x.onclick=()=>{sruStep=Number(x.dataset.sruStep);renderSru()});
   document.querySelectorAll("[data-sru]").forEach(x=>x.oninput=x.onchange=()=>{data.sru[x.dataset.sru]=x.value;saveDossier()});
+  document.querySelectorAll("[data-sru-sign]").forEach(x=>x.onchange=()=>{data.sru.signatureDates[x.dataset.sruSign]=x.value;saveDossier()});
   document.querySelectorAll("input[name=sruBuyer]").forEach(x=>x.onchange=()=>{data.sru.acquereurIndex=Number(x.value);saveDossier();renderSru()});
+  document.querySelectorAll("input[name=sruCivilite]").forEach(x=>x.onchange=()=>{data.sru.civilites[String(buyerIndex)]=x.value;saveDossier();renderSru()});
   const g=$("generateSruInline");if(g)g.onclick=generateSruDocument;
 }
 async function generateSruDocument(){
   try{
     ensureSru();
-    const buyer=(data.acquereurs||[])[Number(data.sru.acquereurIndex)||0];
+    const index=Number(data.sru.acquereurIndex)||0,buyer=(data.acquereurs||[])[index];
     if(!buyer){alert("Renseigne d’abord un acquéreur.");return}
-    if(!data.sru.dateCompromis){alert("Renseigne la date de signature du compromis.");return}
-    const blob=await buildSru(data,data.sru,buyer),a=document.createElement("a");
+    if(buyer.type!=="morale"&&!sruCivilite(data.sru,index,buyer)){alert("Choisis M. ou Mme pour l’acquéreur destinataire.");sruStep=0;renderSru();return}
+    const dates=Object.values(data.sru.signatureDates||{}).filter(Boolean);
+    if(!dates.length){alert("Renseigne au moins une date de signature de l’avant-contrat.");sruStep=1;renderSru();return}
+    const blob=await buildSru(data,data.sru,buyer,index),a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
     const clean=(sruPartyName(buyer)||"acquereur").replace(/[^A-Za-zÀ-ÿ0-9]+/g,"_").replace(/^_+|_+$/g,"");
     a.download="NOTIFICATION_SRU_"+clean+".docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
