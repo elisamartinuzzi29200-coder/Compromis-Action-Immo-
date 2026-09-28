@@ -250,11 +250,6 @@ function sruPdfDate(v){const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
 async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   if(!window.jspdf||!window.jspdf.jsPDF)throw new Error("Le moteur PDF n'est pas charge.");
   const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
-  const logoResponse=await fetch("./assets/action-immo-logo-sru.b64?v=4",{cache:"no-store"});
-  if(!logoResponse.ok)throw new Error("Impossible de charger le logo Action Immobilière.");
-  let logoBase64=(await logoResponse.text()).replace(/\s+/g,"");
-  while(logoBase64.length%4)logoBase64+="=";
-  const sruLogoData="data:image/jpeg;base64,"+logoBase64;
   const W=210,M=17,CW=W-M*2,dark=[57,69,83],teal=[7,154,152],muted=[105,117,128],line=[220,226,231],pale=[245,249,249];
   const civ=buyer&&buyer.type==="morale"?"":((sru.civilites||{})[String(buyerIndex)]||"");
   const buyerName=[civ,sruPdfName(buyer)].filter(Boolean).join(" "),buyerAddress=buyer&&buyer.adresse||"";
@@ -269,7 +264,28 @@ async function buildSruPdf(data,sru,buyer,buyerIndex=0){
   const signedDates=signRows.map(r=>r[2]).filter(Boolean).sort(),firstDate=signedDates[0]||"";
 
   const setText=(size=10,color=dark,style="normal")=>{doc.setFont("helvetica",style);doc.setFontSize(size);doc.setTextColor(...color)};
-  const logo=()=>{const w=46,h=w*(141/200);doc.addImage(sruLogoData,"JPEG",(W-w)/2,8,w,h,undefined,"FAST");return 8+h};
+  const logo=()=>{
+    const cx=W/2,top=7;
+    // Logo vectoriel : évite les artefacts du JPEG/base64 dans jsPDF et reste net à l'impression.
+    doc.setDrawColor(...teal);doc.setLineWidth(1.35);
+    doc.ellipse(cx,top+10.5,15.5,11.5,"S");
+    doc.setFillColor(255,255,255);doc.rect(cx-17,top+15.5,34,8,"F");
+
+    doc.setFillColor(...teal);
+    doc.rect(cx-8.5,top+8.2,10.5,3.7,"F");
+    doc.rect(cx-1.8,top+8.2,3.8,11.3,"F");
+    doc.rect(cx+7.1,top+10.3,3.8,9.2,"F");
+
+    doc.setFillColor(...dark);
+    doc.circle(cx-8.5,top+16.3,2.6,"F");
+    doc.circle(cx+9,top+6.2,2.6,"F");
+
+    setText(11.4,dark,"bold");
+    doc.text("ACTION IMMOBILIERE",cx,top+27,{align:"center"});
+    setText(6.2,teal,"bold");
+    doc.text("VENTE  •  LOCATION  •  GESTION",cx,top+31.2,{align:"center"});
+    return top+33;
+  };
   const rule=y=>{doc.setDrawColor(...teal);doc.setLineWidth(.7);doc.line(M,y,W-M,y)};
   const title=(text,y)=>{setText(16,dark,"bold");doc.text(text,W/2,y,{align:"center"});return y+7};
   const subtitle=(text,y)=>{setText(8.6,muted,"normal");doc.text(text,W/2,y,{align:"center"});return y+6};
