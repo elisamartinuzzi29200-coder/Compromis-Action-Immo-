@@ -8,14 +8,24 @@
   <link rel="stylesheet" href="./document-import-v2.css">
   <link rel="stylesheet" href="./notary-directory.css">
 </head>
-<body>
+<body class="cloud-locked">
+<div id="cloudGate" class="cloudGate">
+  <form id="cloudLoginForm" class="cloudLoginCard">
+    <h2>Vos compromis, sur tous vos ordinateurs</h2>
+    <p>Connectez-vous avec votre compte Action Immobilière pour retrouver vos dossiers et reprendre votre rédaction.</p>
+    <label>Adresse e-mail<input id="cloudEmail" type="email" autocomplete="username" required></label>
+    <label>Mot de passe<input id="cloudPassword" type="password" autocomplete="current-password" required></label>
+    <button type="submit" class="primary">Se connecter</button>
+    <p id="cloudLoginMessage" class="cloudLoginMessage"></p>
+  </form>
+</div>
 <header>
   <div>
     <h1>COMPROMIS DE VENTE</h1>
     <p>Action Immobilière — remplissage du modèle Word officiel</p>
   </div>
   <div class="actions">
-    <span id="status"></span>
+    <span id="cloudStatus" class="cloudStatus"></span><span id="status"></span>
     <button id="templateBtn">Charger le modèle Word</button>
     <button id="dashboardBtn">Mes dossiers</button><button id="newBtn">Nouveau dossier</button>
     <button id="saveBtn">Sauvegarder</button>
@@ -39,8 +49,10 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="./compromis-cloud.js?v=1"></script>
 <script src="./docx-fill.js"></script>
-<script src="./app.js"></script>
+<script src="./app.js?v=cloud-1"></script>
 <script src="./document-import-v2.js"></script>
 <script src="./notary-directory.js"></script>
 </body>
