@@ -3,8 +3,14 @@ let step=0,sruStep=0,templateBytes=null,viewMode="dashboard",currentId=null,auto
 const blankPerson=()=>({type:"physique",civilite:"Monsieur",nom:"",prenoms:"",naissance:"",lieuNaissance:"",profession:"",situation:"Célibataire",unionDate:"",unionLieu:"",adresse:"",primo:false,societe:"",siret:"",siegeSocial:""});
 const initial=()=>({agence:"brest",sru:{acquereurIndex:0,civilites:{},signatureDates:{},dateNotification:"",lieu:"Brest",adresseBien:"",designationCourte:"",modeEnvoi:"LRAR",adresseRetour:"ACTION IMMOBILIÈRE - 6 rue La Bruyère - 29200 BREST"},vendeurs:[blankPerson()],acquereurs:[blankPerson()],adresseBien:"",typeBien:"ancien",copropriete:"",designation:"",origineVendeur:"",origineActe:"",occupation:"libre",carrez:"",carrezDate:"",metreur:"",syndic:"",construction:"",assainissement:"",repartitionAssainissement:"",erp:false,erpDate:"",erpTech:false,erpNat:false,erpSis:false,erpMinier:false,erpSismique:false,sinistre:"",parasitaire:false,parasitaireDate:"",plomb:false,plombDate:"",plombResultat:"",amiante:false,amianteDate:"",amianteResultat:"",amiantePriv:false,amianteComm:false,gaz:false,gazDate:"",electricite:false,electriciteDate:"",dpe:false,dpeDate:"",audit:false,auditDate:"",prixBien:"",prixMeubles:"",jouissance:"",autresConditions:"",fraisActe:"",honoraires:"",financementMode:"avec",deniers:"",prets:"",relais:"",empruntsCours:"",ressources:"",montantPrets:"",tauxMax:"",dureePret:"",chargesMax:"",banques:"",sansPretMention:"",conditionDuree:"60",conditionDate:"",autresSuspensives:"",delaiActe:"",dateActe:"",notaire:"",notaireAssistant:"",clausePenale:"",honorairesAcq:"",mandatNo:"",mandatDate:"",sequestre:false,sequestreNom:"",sequestreMontant:"",sequestreRef:"",bordereau:{}});
 let data=initial();
-function loadDossiers(){try{return JSON.parse(localStorage.getItem("ai-compromis-dossiers")||"[]")}catch{return []}}
-function storeDossiers(list){localStorage.setItem("ai-compromis-dossiers",JSON.stringify(list))}
+function loadDossiers(){
+  if(window.CompromisCloud?.ready)return window.CompromisCloud.getDossiers();
+  try{return JSON.parse(localStorage.getItem("ai-compromis-dossiers")||"[]")}catch{return []}
+}
+function storeDossiers(list){
+  try{localStorage.setItem("ai-compromis-dossiers",JSON.stringify(list))}catch{}
+  if(window.CompromisCloud?.ready)window.CompromisCloud.setCache(list);
+}
 function dossierTitle(d){
   const partyName=x=>x.type==="morale"?(x.societe||"").trim():(x.nom+" "+x.prenoms).trim();
   const v=(d.vendeurs||[]).map(partyName).filter(Boolean).join(" / ");
@@ -22,7 +28,15 @@ function saveDossier(statusText="Dossier sauvegardé"){
   const item={id:currentId,title:dossierTitle(data),updatedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))};
   if(idx>=0)list[idx]=item;else list.unshift(item);
   storeDossiers(list);
-  if(statusText!==false)$("status").textContent=statusText;
+  if(window.CompromisCloud?.ready){
+    if(statusText!==false)$("status").textContent="Enregistrement en ligne…";
+    window.CompromisCloud.upsert(item).then(()=>{
+      if(statusText!==false)$("status").textContent=statusText==="✓ Enregistré automatiquement"?"✓ Enregistré automatiquement en ligne":"✓ Dossier enregistré en ligne";
+    }).catch(err=>{
+      if(statusText!==false)$("status").textContent="Sauvegardé localement — synchronisation à reprendre";
+      console.error("Synchronisation compromis",err);
+    });
+  }else if(statusText!==false)$("status").textContent=statusText;
 }
 function scheduleAutosave(){
   if(viewMode==="dashboard"||!currentId)return;
@@ -40,8 +54,12 @@ function duplicateDossier(id){
   data={...initial(),...JSON.parse(JSON.stringify(item.data))};step=0;viewMode="editor";saveDossier(false);render();
 }
 function deleteDossier(id){
-  if(!confirm("Supprimer définitivement ce dossier de ce navigateur ?"))return;
+  if(!confirm("Supprimer définitivement ce dossier ?"))return;
   storeDossiers(loadDossiers().filter(x=>x.id!==id));renderDashboard();
+  if(window.CompromisCloud?.ready)window.CompromisCloud.delete(id).catch(err=>{
+    console.error("Suppression cloud compromis",err);
+    $("status").textContent="Suppression locale effectuée — suppression en ligne à reprendre";
+  });
 }
 try{
   const legacy=localStorage.getItem("ai-compromis-exact");
@@ -559,7 +577,7 @@ function dossierControllerHtml(){
 function renderDashboard(){
   viewMode="dashboard";currentId=null;$("generateBtn").textContent="Générer le Word";$("templateBtn").style.display="";$("nav").innerHTML="";
   const list=loadDossiers().sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  $("content").innerHTML=`<div class="dashboardHead"><div><h2>MES DOSSIERS</h2><p class="hint">Les dossiers sont enregistrés uniquement dans ce navigateur.</p></div><button class="primary" id="dashNew">+ Nouveau dossier</button></div>
+  $("content").innerHTML=`<div class="dashboardHead"><div><h2>MES DOSSIERS</h2><p class="hint">${window.CompromisCloud?.ready?"Vos compromis sont enregistrés dans votre espace sécurisé et accessibles depuis vos autres ordinateurs.":"Les dossiers sont conservés localement tant que la synchronisation est indisponible."}</p></div><button class="primary" id="dashNew">+ Nouveau dossier</button></div>
   ${list.length?`<div class="dossierList">${list.map(x=>`<article class="dossierCard"><div><strong>${esc(x.title)}</strong><small>Dernière modification : ${new Date(x.updatedAt).toLocaleString("fr-FR")}</small></div><div class="dossierActions"><button data-open="${x.id}">Ouvrir</button><button data-duplicate="${x.id}">Dupliquer</button><button class="dangerBtn" data-delete="${x.id}">Supprimer</button></div></article>`).join("")}</div>`:`<div class="emptyState"><strong>Aucun dossier enregistré</strong><p>Crée ton premier compromis. Tu pourras ensuite revenir ici pour le rouvrir, le dupliquer ou le supprimer.</p></div>`}`;
   $("prev").style.display="none";$("next").style.display="none";
   $("dashNew").onclick=newDossier;
@@ -722,4 +740,4 @@ $("dashboardBtn").onclick=()=>{viewMode="dashboard";renderDashboard()};$("newBtn
 $("generateBtn").onclick=async()=>{try{if(viewMode==="sru"){await generateSruDocument();return}if(viewMode==="dashboard"){alert("Ouvre d’abord un dossier.");return}if(!templateBytes){alert("Charge d’abord le modèle Word "+((data.agence||"brest")==="quimper"?"Quimper":"Brest")+". Il sera mémorisé dans ce navigateur ensuite.");return}const blocking=dossierChecks().filter(x=>x.level==="error");if(blocking.length&&!confirm("Le contrôle du dossier signale "+blocking.length+" point(s) bloquant(s).\n\nGénérer quand même le compromis ?"))return;estimateActeFees();penaltyText();const blob=await buildCompromis(templateBytes,data),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="COMPROMIS_DE_VENTE_"+((data.agence||"brest").toUpperCase())+"_REMPLI.docx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert("Impossible de générer le document : "+e.message)}};
 $("prev").onclick=()=>{if(viewMode==="sru"){if(sruStep>0){sruStep--;renderSru()}return}if(step>0){step--;render()}};
 $("next").onclick=()=>{if(viewMode==="sru"){if(sruStep<3){sruStep++;renderSru()}return}if(step<sections.length-1){step++;render()}};
-(async()=>{const t=await loadTemplate("brest");if(t){templateBytes=t.bytes instanceof Uint8Array?t.bytes:new Uint8Array(t.bytes);$("status").textContent="Modèle Brest mémorisé : "+t.name}else $("status").textContent="Charge le modèle Brest une seule fois";renderDashboard()})();
+(async()=>{if(window.COMPROMIS_CLOUD_READY)await window.COMPROMIS_CLOUD_READY;const t=await loadTemplate("brest");if(t){templateBytes=t.bytes instanceof Uint8Array?t.bytes:new Uint8Array(t.bytes);$("status").textContent="Modèle Brest mémorisé sur cet ordinateur : "+t.name}else $("status").textContent="Dossiers synchronisés — charge le modèle Brest une seule fois sur cet ordinateur";renderDashboard()})();
