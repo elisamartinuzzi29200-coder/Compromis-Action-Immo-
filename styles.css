@@ -78,3 +78,16 @@ footer{display:flex;justify-content:space-between;margin-top:22px;gap:10px}
 .controlItem.error{border-left:5px solid #b42318}
 .controlItem.warn{border-left:5px solid #b7791f}
 .diagAdaptive{display:grid;gap:12px;margin-top:14px}
+
+body.cloud-locked>header,body.cloud-locked>.app{display:none!important}
+.cloudGate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#edf7f4,#f8fbfa)}
+.cloudGate.hidden{display:none!important}
+.cloudLoginCard{width:min(460px,100%);background:#fff;border:1px solid #d7e7e2;border-radius:18px;padding:30px;box-shadow:0 18px 55px #173e351f}
+.cloudLoginCard h2{margin:0 0 10px;color:#176f69;font-size:27px}
+.cloudLoginCard p{color:#617b76;line-height:1.45}
+.cloudLoginCard label{display:block;margin:16px 0;font-weight:700;color:#3f5d59}
+.cloudLoginCard input{display:block;width:100%;margin-top:7px;padding:12px 13px;border:1px solid #c9dcd6;border-radius:8px;font:inherit}
+.cloudLoginCard button{width:100%;margin-top:8px}
+.cloudLoginMessage{min-height:20px;margin-bottom:0!important;font-size:13px;color:#a44747!important}
+.cloudStatus{font-size:12px;font-weight:700;color:#257a72}
+.cloudStatus.cloud-error{color:#a14f4f}
